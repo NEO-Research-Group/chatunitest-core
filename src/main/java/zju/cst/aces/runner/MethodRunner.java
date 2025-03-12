@@ -68,12 +68,16 @@ public class MethodRunner extends ClassRunner {
         PromptInfo promptInfo = pc.getPromptInfo();
         promptInfo.setRound(0);
 
+        long startTime = System.nanoTime();
         // Test Generation Phase
         phase.generateTest(pc);
 
+
         // Validation
         if (phase.validateTest(pc)) {
-            exportRecord(pc.getPromptInfo(), classInfo, num);
+            long endTime = System.nanoTime();
+            float duration = (float)(endTime - startTime)/ 1_000_000_000;
+            exportRecord(pc.getPromptInfo(), classInfo, num, duration, true);
 
             return true;
         }
@@ -86,15 +90,20 @@ public class MethodRunner extends ClassRunner {
             // Repair
             phase.repairTest(pc);
 
+
             // Validation and process
             if (phase.validateTest(pc)) { // if passed validation
-                exportRecord(pc.getPromptInfo(), classInfo, num);
+                long endTime = System.nanoTime();
+                float duration = (float)(endTime - startTime)/ 1_000_000_000;
+                exportRecord(pc.getPromptInfo(), classInfo, num, duration, true);
                 return true;
             }
 
         }
 
-        exportRecord(pc.getPromptInfo(), classInfo, num);
+        long endTime = System.nanoTime();
+        float duration = (float)(endTime - startTime)/ 1_000_000_000;
+        exportRecord(pc.getPromptInfo(), classInfo, num, duration, false);
         return false;
     }
 }
