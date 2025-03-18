@@ -65,7 +65,7 @@ public class SofiaRunner extends MethodRunner {
                 continue;
             }
 
-            promptInfo.addConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods));
+            promptInfo.addConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
         }
 
         for (Map.Entry<String, Set<String>> entry : methodInfo.dependentMethods.entrySet()) {
@@ -85,7 +85,7 @@ public class SofiaRunner extends MethodRunner {
             }
 
             Set<String> depMethods = entry.getValue();
-            promptInfo.addMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods));
+            promptInfo.addMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
             addMethodDepsByDepth(config, depClassName, depMethods, promptInfo, config.getDependencyDepth());
         }
 
@@ -122,10 +122,14 @@ public class SofiaRunner extends MethodRunner {
         return promptInfo;
     }
 
-    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods) throws IOException {
+    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods, PromptInfo promptInfo) throws IOException {
         ClassInfo depClassInfo = getClassInfo(config, depClassName);
         if (depClassInfo == null) {
             try {
+                String res = getSourceCode(depClassName);
+                if (res != null) {
+                    promptInfo.incrementSofiaActivations();
+                }
                 return getSourceCode(depClassName);
             } catch (Exception e) {
                 return null;
@@ -163,7 +167,7 @@ public class SofiaRunner extends MethodRunner {
         return basicInfo + getterSetter + sourceDepMethods + "}";
     }
 
-    public static String getSourceCode(String className) throws IOException {
+    public static String getSourceCode(String className) {
         String classPath = className.replace('.', '/') + ".class";
         for (String dependency : dependencies) {
             try {

@@ -380,7 +380,6 @@ public abstract class AbstractRunner {
     }
 
     public void exportRecord(PromptInfo promptInfo, ClassInfo classInfo, int attempt, float duration, int nSlices, int successfulSlices) {
-        config.getLogger().info("CHECK" + nSlices + " " + successfulSlices);
         String methodIndex = classInfo.methodSigs.get(promptInfo.methodSignature);
         Path recordPath = config.getHistoryPath();
 
@@ -505,7 +504,7 @@ public abstract class AbstractRunner {
         }
 
         Path outputPath = config.getTestOutput();
-        File outputInfo = outputPath.resolve("outputInfo.json").toFile();
+        File outputInfo = outputPath.resolve("generationData.json").toFile();
 
         Map<String, Map<String, String>> attemptMapping = new TreeMap<>();
         String fullNamePrefix = promptInfo.getFullTestName().substring(0, promptInfo.getFullTestName().indexOf("_Test") - 1);
@@ -522,18 +521,16 @@ public abstract class AbstractRunner {
             map.put("time", String.valueOf(duration));
             map.put("success", String.valueOf(success));
             map.put("round", String.valueOf(promptInfo.round));
+            map.put("tokenConsumption", String.valueOf(promptInfo.getTokenCount()));
+            map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
         }
         try (OutputStreamWriter writer = new OutputStreamWriter(
                 new FileOutputStream(attemptMappingFile), StandardCharsets.UTF_8)) {
             writer.write(GSON.toJson(attemptMapping));
 
-            config.getLogger().info("STEP 1");
-
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
-
-            config.getLogger().info("STEP 2");
 
             JsonArray jsonArray;
             if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
@@ -544,12 +541,8 @@ public abstract class AbstractRunner {
                 jsonArray = new JsonArray(); // If file does not exist, create an empty array
             }
 
-            config.getLogger().info("STEP 3");
-
             // Append the new data
             jsonArray.add(newElement);
-
-            config.getLogger().info("STEP 4 " + jsonArray.toString());
 
             // Write back to the file
             //Writer infoWriter = Files.newBufferedWriter(outputInfo.toPath());
@@ -563,8 +556,6 @@ public abstract class AbstractRunner {
                 infoWriter.flush(); // Ensure all data is written
             }
 
-            config.getLogger().info("STEP 5");
-
         } catch (IOException e) {
             throw new RuntimeException("In AbstractRunner.exportAttemptMapping: " + e);
         }
@@ -577,7 +568,7 @@ public abstract class AbstractRunner {
         File attemptMappingFile = savePath.resolve("attemptMapping.json").toFile();
 
         Path outputPath = config.getTestOutput();
-        File outputInfo = outputPath.resolve("outputInfo.json").toFile();
+        File outputInfo = outputPath.resolve("generationData.json").toFile();
 
         Map<String, Map<String, String>> attemptMapping = new TreeMap<>();
         String fullNamePrefix = promptInfo.getFullTestName().substring(0, promptInfo.getFullTestName().indexOf("_Test") - 1);
@@ -600,12 +591,9 @@ public abstract class AbstractRunner {
                 new FileOutputStream(attemptMappingFile), StandardCharsets.UTF_8)) {
             writer.write(GSON.toJson(attemptMapping));
 
-            config.getLogger().info("STEP 1");
 
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
-
-            config.getLogger().info("STEP 2");
 
             JsonArray jsonArray;
             if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
@@ -616,12 +604,10 @@ public abstract class AbstractRunner {
                 jsonArray = new JsonArray(); // If file does not exist, create an empty array
             }
 
-            config.getLogger().info("STEP 3");
 
             // Append the new data
             jsonArray.add(newElement);
 
-            config.getLogger().info("STEP 4 " + jsonArray.toString());
 
             // Write back to the file
             //Writer infoWriter = Files.newBufferedWriter(outputInfo.toPath());
@@ -635,7 +621,6 @@ public abstract class AbstractRunner {
                 infoWriter.flush(); // Ensure all data is written
             }
 
-            config.getLogger().info("STEP 5");
 
         } catch (IOException e) {
             throw new RuntimeException("In AbstractRunner.exportAttemptMapping: " + e);

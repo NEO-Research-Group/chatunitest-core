@@ -36,6 +36,7 @@ public class PromptInfo {
     public float coverage=0;//max_coverage
     public int coverage_improve_time=0;
     public String max_coverage_test_code;
+    public Integer sofiaActivations=0;
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
@@ -100,5 +101,21 @@ public class PromptInfo {
 
     public void addRecord(RoundRecord r) {
         this.records.add(r);
+    }
+
+    public String getMethodAndConstructorDepsStrings() {
+        return String.join(" ", methodDeps.values()) + String.join(" ", constructorDeps.values());
+    }
+
+    public Integer getTokenCount() {
+        Integer tokenSum = 0;
+        for (RoundRecord r : records) {
+            tokenSum += r.getPromptToken() + r.getResponseToken();
+        }
+        return tokenSum;
+    }
+
+    public void incrementSofiaActivations() {
+        sofiaActivations++;
     }
 }
