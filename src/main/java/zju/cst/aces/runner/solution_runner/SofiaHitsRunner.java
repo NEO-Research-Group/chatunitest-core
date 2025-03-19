@@ -147,7 +147,7 @@ public class SofiaHitsRunner extends MethodRunner {
                 continue;
             }
 
-            promptInfo.addConstructorDeps(depClassName, SofiaHitsRunner.getDepInfo(config, depClassName, depMethods));
+            promptInfo.addConstructorDeps(depClassName, SofiaHitsRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
         }
 
         for (Map.Entry<String, Set<String>> entry : methodInfo.dependentMethods.entrySet()) {
@@ -167,7 +167,7 @@ public class SofiaHitsRunner extends MethodRunner {
             }
 
             Set<String> depMethods = entry.getValue();
-            promptInfo.addMethodDeps(depClassName, SofiaHitsRunner.getDepInfo(config, depClassName, depMethods));
+            promptInfo.addMethodDeps(depClassName, SofiaHitsRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
             addMethodDepsByDepth(config, depClassName, depMethods, promptInfo, config.getDependencyDepth());
         }
 
@@ -204,11 +204,15 @@ public class SofiaHitsRunner extends MethodRunner {
         return promptInfo;
     }
 
-    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods) throws IOException {
+    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods, PromptInfo promptInfo) throws IOException {
         ClassInfo depClassInfo = getClassInfo(config, depClassName);
         if (depClassInfo == null) {
             try {
-                return getSourceCode(depClassName);
+                String sourceCode = getSourceCode(depClassName);
+                if (sourceCode != null) {
+                    promptInfo.incrementSofiaActivations();
+                }
+                return sourceCode;
             } catch (Exception e) {
                 return null;
             }
@@ -245,7 +249,7 @@ public class SofiaHitsRunner extends MethodRunner {
         return basicInfo + getterSetter + sourceDepMethods + "}";
     }
 
-    public static String getSourceCode(String className) throws IOException {
+    public static String getSourceCode(String className) {
         String classPath = className.replace('.', '/') + ".class";
         for (String dependency : dependencies) {
             try {

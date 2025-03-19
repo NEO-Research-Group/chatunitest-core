@@ -126,11 +126,11 @@ public class SofiaRunner extends MethodRunner {
         ClassInfo depClassInfo = getClassInfo(config, depClassName);
         if (depClassInfo == null) {
             try {
-                String res = getSourceCode(depClassName);
-                if (res != null) {
+                String sourceCode = getSourceCode(depClassName);
+                if (sourceCode != null) {
                     promptInfo.incrementSofiaActivations();
                 }
-                return getSourceCode(depClassName);
+                return sourceCode;
             } catch (Exception e) {
                 return null;
             }

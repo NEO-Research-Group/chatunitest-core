@@ -86,12 +86,4 @@ public class PromptConstructorImpl implements PromptConstructor {
         }
     }
 
-    public Integer getCompleteTokenCount() {
-        int sum = 0;
-        for (ChatMessage p : chatMessages) {
-            sum += TokenCounter.countToken(p.getContent());
-        }
-        return sum;
-    }
-
 }
