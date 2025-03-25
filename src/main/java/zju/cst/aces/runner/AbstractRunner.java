@@ -137,7 +137,8 @@ public abstract class AbstractRunner {
                 false,
                 classInfo.fullClassName,
                 methodInfo.methodName,
-                methodInfo.methodSignature);
+                methodInfo.methodSignature,
+                methodInfo.methodDescriptor);
         promptInfo.setClassInfo(classInfo);
         promptInfo.setMethodInfo(methodInfo);
         String fields = joinLines(classInfo.fields);
@@ -177,7 +178,8 @@ public abstract class AbstractRunner {
                 true,
                 classInfo.fullClassName,
                 methodInfo.methodName,
-                methodInfo.methodSignature);
+                methodInfo.methodSignature,
+                methodInfo.methodDescriptor);
         promptInfo.setClassInfo(classInfo);
         promptInfo.setMethodInfo(methodInfo);
         List<String> otherBriefMethods = new ArrayList<>();
@@ -518,6 +520,7 @@ public abstract class AbstractRunner {
             map.put("packageName", promptInfo.classInfo.packageName);
             map.put("methodName", promptInfo.methodName);
             map.put("methodSig", promptInfo.methodSignature);
+            map.put("methodDesc", promptInfo.methodDescriptor);
             map.put("time", String.valueOf(duration));
             map.put("success", String.valueOf(success));
             map.put("round", String.valueOf(promptInfo.round));
@@ -583,6 +586,7 @@ public abstract class AbstractRunner {
             map.put("packageName", promptInfo.classInfo.packageName);
             map.put("methodName", promptInfo.methodName);
             map.put("methodSig", promptInfo.methodSignature);
+            map.put("methodDesc", promptInfo.methodDescriptor);
             map.put("time", String.valueOf(duration));
             map.put("totalSlices", String.valueOf(nSlices));
             map.put("successfulSlices", String.valueOf(successfulSlices));

@@ -134,7 +134,8 @@ public class SofiaHitsRunner extends MethodRunner {
                 true,
                 classInfo.fullClassName,
                 methodInfo.methodName,
-                methodInfo.methodSignature);
+                methodInfo.methodSignature,
+                methodInfo.methodDescriptor);
         promptInfo.setClassInfo(classInfo);
         promptInfo.setMethodInfo(methodInfo);
         List<String> otherBriefMethods = new ArrayList<>();

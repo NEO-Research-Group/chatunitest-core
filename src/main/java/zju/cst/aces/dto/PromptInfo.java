@@ -37,16 +37,18 @@ public class PromptInfo {
     public int coverage_improve_time=0;
     public String max_coverage_test_code;
     public Integer sofiaActivations=0;
+    public String methodDescriptor;
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
-                      String methodSignature) {
+                      String methodSignature, String methodDescriptor) {
         this.hasDep = hasDep;
         this.fullClassName = fullClassName;
         this.className = fullClassName.contains(".") ?
                 fullClassName.substring(fullClassName.lastIndexOf(".") + 1) : fullClassName;
         this.methodName = methodName;
         this.methodSignature = methodSignature;
+        this.methodDescriptor = methodDescriptor;
     }
 
     public PromptInfo(){}
