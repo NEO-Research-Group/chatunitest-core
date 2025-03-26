@@ -176,7 +176,7 @@ public class SofiaRunner extends MethodRunner {
                 if (jarFile.exists()) {
                     String decompiledClass = decompileClassFromJar(jarFile, classPath);
                     if (decompiledClass != null) {
-                        return decompiledClass;
+                        return removeLeadingJavadoc(decompiledClass);
                     }
                 }
             } catch(Exception e) {
@@ -237,6 +237,10 @@ public class SofiaRunner extends MethodRunner {
 
             return tempFile;
         }
+    }
+
+    public static String removeLeadingJavadoc(String source) {
+        return source.replaceFirst("(?s)^Analysing.*?\\R*/\\*.*?\\*/\\s*", "");
     }
 
 }
