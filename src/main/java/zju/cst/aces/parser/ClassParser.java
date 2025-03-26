@@ -181,7 +181,8 @@ public class ClassParser {
                 getDependentMethods(cu, node),
                 node.toString(),
                 getMethodComment(node),
-                getMethodAnnotation(node)
+                getMethodAnnotation(node),
+                getMethodDescriptor(node)
         );
         mi.setUseField(useField(node));
         mi.setConstructor(node.isConstructorDeclaration());
@@ -194,6 +195,45 @@ public class ClassParser {
 //            findObjectConstructionCode(cu, node.asMethodDeclaration());
 //        }
         return mi;
+    }
+
+    private String getMethodDescriptor(CallableDeclaration<?> node) {
+        StringBuilder descriptor = new StringBuilder("(");
+
+        // Add parameter types
+        for (Parameter param : node.getParameters()) {
+            descriptor.append(toJVMDescriptor(param.getType().resolve().describe()));
+        }
+
+        descriptor.append(")");
+
+        // Add return type
+        if (node instanceof MethodDeclaration) {
+            descriptor.append(toJVMDescriptor(((MethodDeclaration) node).getType().resolve().describe()));
+        } else {
+            descriptor.append("V"); // Constructors return void
+        }
+
+        return descriptor.toString();
+    }
+
+    private String toJVMDescriptor(String type) {
+        switch (type) {
+            case "int": return "I";
+            case "boolean": return "Z";
+            case "double": return "D";
+            case "float": return "F";
+            case "long": return "J";
+            case "char": return "C";
+            case "byte": return "B";
+            case "short": return "S";
+            case "void": return "V";
+            default:
+                if (type.endsWith("[]")) {
+                    return "[" + toJVMDescriptor(type.substring(0, type.length() - 2));
+                }
+                return "L" + type.replace('.', '/') + ";"; // Convert fully qualified names
+        }
     }
 
     private Map<String, Set<String>> getConstructorDeps(CompilationUnit cu, ClassOrInterfaceDeclaration classNode) {

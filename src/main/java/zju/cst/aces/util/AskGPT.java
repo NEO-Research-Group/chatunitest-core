@@ -50,7 +50,15 @@ public class AskGPT {
                 RequestBody body = RequestBody.create(MEDIA_TYPE, jsonPayload);
                 Request request = new Request.Builder().url(modelConfig.getUrl()).post(body).addHeader("Content-Type", "application/json").addHeader("Authorization", "Bearer " + apiKey).build();
 
-                response = config.getClient().newCall(request).execute();
+                do {
+                    response = config.getClient().newCall(request).execute();
+                    if (response.code() == 429) {
+                        config.getLogger().info("Waiting 2 hours...");
+                        Thread.sleep(3600 * 2 * 1000);
+                    }
+                } while (response.code() == 429);
+
+
                 if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
                 try {
                     Thread.sleep(config.sleepTime);
@@ -67,6 +75,8 @@ public class AskGPT {
                 }
                 config.getLogger().error("In AskGPT.askChatGPT: " + e);
                 maxTry--;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
         config.getLogger().debug("AskGPT: Failed to get response\n");

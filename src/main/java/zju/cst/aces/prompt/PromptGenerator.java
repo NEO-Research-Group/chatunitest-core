@@ -118,6 +118,10 @@ public class PromptGenerator {
                 return PromptFile.chattester_repair;
             case "SYMPROMPT":
                 return PromptFile.chatunitest_repair;
+            case "SOFIA":
+                return PromptFile.sofia_repair;
+            case "SOFIA_HITS":
+                return config.useSlice ? PromptFile.sofia_hits_slice_init : PromptFile.sofia_hits_test_repair;
             default:
                 return PromptFile.chatunitest_repair;
         }
@@ -143,6 +147,10 @@ public class PromptGenerator {
             case "SYMPROMPT":
                 setSymPromptInitData();
                 return PromptFile.symprompt_init;
+            case "SOFIA":
+                return PromptFile.sofia_init;
+            case "SOFIA_HITS":
+                return config.useSlice ? PromptFile.sofia_hits_slice_init : PromptFile.sofia_hits_test_init;
             default:
                 return PromptFile.chatunitest_init;
         }

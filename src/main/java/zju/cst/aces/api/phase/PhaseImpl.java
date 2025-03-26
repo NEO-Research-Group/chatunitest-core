@@ -18,7 +18,9 @@ public class PhaseImpl implements Phase {
         HITS,
         SYMPROMPT,
         CHATTESTER,
-        MUTAP
+        MUTAP,
+        SOFIA,
+        SOFIA_HITS
     }
 
     protected final Config config;
@@ -91,6 +93,10 @@ public class PhaseImpl implements Phase {
                     return new CHATTESTER(config);
                 case MUTAP:
                     return new MUTAP(config);
+                case SOFIA:
+                    return new SOFIA(config);
+                case SOFIA_HITS:
+                    return new SOFIA_HITS(config);
                 default:
                     return new PhaseImpl(config); // Default or fallback Phase
             }

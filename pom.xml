@@ -33,6 +33,11 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>org.benf</groupId>
+            <artifactId>cfr</artifactId>
+            <version>0.152</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-plugin-api</artifactId>
             <version>3.9.1</version>
@@ -249,6 +254,19 @@
                       </dependencies>
                     </plugin>
                     -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>download-sources</id>
+                                <goals>
+                                    <goal>sources</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-release-plugin</artifactId>

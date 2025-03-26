@@ -36,16 +36,19 @@ public class PromptInfo {
     public float coverage=0;//max_coverage
     public int coverage_improve_time=0;
     public String max_coverage_test_code;
+    public Integer sofiaActivations=0;
+    public String methodDescriptor;
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
-                      String methodSignature) {
+                      String methodSignature, String methodDescriptor) {
         this.hasDep = hasDep;
         this.fullClassName = fullClassName;
         this.className = fullClassName.contains(".") ?
                 fullClassName.substring(fullClassName.lastIndexOf(".") + 1) : fullClassName;
         this.methodName = methodName;
         this.methodSignature = methodSignature;
+        this.methodDescriptor = methodDescriptor;
     }
 
     public PromptInfo(){}
@@ -100,5 +103,21 @@ public class PromptInfo {
 
     public void addRecord(RoundRecord r) {
         this.records.add(r);
+    }
+
+    public String getMethodAndConstructorDepsStrings() {
+        return String.join(" ", methodDeps.values()) + String.join(" ", constructorDeps.values());
+    }
+
+    public Integer getTokenCount() {
+        Integer tokenSum = 0;
+        for (RoundRecord r : records) {
+            tokenSum += r.getPromptToken() + r.getResponseToken();
+        }
+        return tokenSum;
+    }
+
+    public void incrementSofiaActivations() {
+        sofiaActivations++;
     }
 }
