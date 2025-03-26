@@ -6,10 +6,7 @@ import zju.cst.aces.dto.MethodInfo;
 import zju.cst.aces.prompt.PromptFile;
 import zju.cst.aces.runner.ClassRunner;
 import zju.cst.aces.runner.MethodRunner;
-import zju.cst.aces.runner.solution_runner.SofiaHitsRunner;
-import zju.cst.aces.runner.solution_runner.SofiaRunner;
-import zju.cst.aces.runner.solution_runner.ChatTesterRunner;
-import zju.cst.aces.runner.solution_runner.HITSRunner;
+import zju.cst.aces.runner.solution_runner.*;
 
 import java.io.IOException;
 
@@ -52,7 +49,7 @@ public class RunnerImpl implements Runner {
                 new SofiaHitsRunner(config, fullClassName, methodInfo).start();
                 break;
             default:
-                new MethodRunner(config, fullClassName, methodInfo).start();
+                new ExpRunner(config, fullClassName, methodInfo).start();
                 break;
         }
     }
