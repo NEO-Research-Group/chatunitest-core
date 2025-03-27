@@ -101,6 +101,7 @@ public class Config {
     public boolean useSlice;
     public boolean useExtra;
     public List<String> dependencyPaths;
+    public boolean generateJsonReport;
 
     @Getter
     @Setter
@@ -164,6 +165,7 @@ public class Config {
         public boolean useSlice;
         public boolean useExtra;
         public List<String> dependencyPaths;
+        public boolean generateJsonReport = false;
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -535,6 +537,11 @@ public class Config {
             this.dependencyPaths = new ArrayList<>(dependencyPaths);
         }
 
+        public ConfigBuilder generateJsonReport(boolean generateJsonReport) {
+            this.generateJsonReport = generateJsonReport;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -655,6 +662,7 @@ public class Config {
             config.setUseExtra(this.useExtra);
             config.setMax_coverage_improve_time(this.max_coverage_improve_time);
             config.setDependencyPaths(this.dependencyPaths);
+            config.setGenerateJsonReport(this.generateJsonReport);
             return config;
         }
     }

@@ -4,10 +4,7 @@ import zju.cst.aces.api.phase.Phase;
 import zju.cst.aces.api.phase.PhaseImpl;
 import zju.cst.aces.api.config.Config;
 import zju.cst.aces.api.impl.PromptConstructorImpl;
-import zju.cst.aces.api.impl.obfuscator.Obfuscator;
 import zju.cst.aces.dto.*;
-import zju.cst.aces.runner.ClassRunner;
-import zju.cst.aces.util.JsonResponseProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,9 +72,12 @@ public class MethodRunner extends ClassRunner {
 
         // Validation
         if (phase.validateTest(pc)) {
-            long endTime = System.nanoTime();
-            float duration = (float)(endTime - startTime)/ 1_000_000_000;
-            exportRecord(pc.getPromptInfo(), classInfo, num, duration, true);
+            exportRecord(pc.getPromptInfo(), classInfo, num);
+            if (config.generateJsonReport) {
+                long endTime = System.nanoTime();
+                float duration = (float)(endTime - startTime)/ 1_000_000_000;
+                generateJsonReport(pc.getPromptInfo(), duration, true);
+            }
 
             return true;
         }
@@ -93,17 +93,23 @@ public class MethodRunner extends ClassRunner {
 
             // Validation and process
             if (phase.validateTest(pc)) { // if passed validation
-                long endTime = System.nanoTime();
-                float duration = (float)(endTime - startTime)/ 1_000_000_000;
-                exportRecord(pc.getPromptInfo(), classInfo, num, duration, true);
+                exportRecord(pc.getPromptInfo(), classInfo, num);
+                if (config.generateJsonReport) {
+                    long endTime = System.nanoTime();
+                    float duration = (float) (endTime - startTime) / 1_000_000_000;
+                    generateJsonReport(pc.getPromptInfo(), duration, true);
+                }
                 return true;
             }
 
         }
 
-        long endTime = System.nanoTime();
-        float duration = (float)(endTime - startTime)/ 1_000_000_000;
-        exportRecord(pc.getPromptInfo(), classInfo, num, duration, false);
+        exportRecord(pc.getPromptInfo(), classInfo, num);
+        if (config.generateJsonReport) {
+            long endTime = System.nanoTime();
+            float duration = (float) (endTime - startTime) / 1_000_000_000;
+            generateJsonReport(pc.getPromptInfo(), duration, false);
+        }
         return false;
     }
 }

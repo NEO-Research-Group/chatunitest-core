@@ -86,9 +86,11 @@ public class HITSRunner extends MethodRunner {
 
                 exportSliceRecord(pc.getPromptInfo(), classInfo, num, i); //todo 检测是否顺利生成信息
             }
-            long endTime = System.nanoTime();
-            float duration = (float)(endTime - startTime)/ 1_000_000_000;
-            exportRecord(pc.getPromptInfo(), classInfo, num, duration, methodSliceInfo.getSteps().size(), successCount);
+            if (config.generateJsonReport) {
+                long endTime = System.nanoTime();
+                float duration = (float) (endTime - startTime) / 1_000_000_000;
+                generateJsonReportHITS(pc.getPromptInfo(), duration, methodSliceInfo.getSteps().size(), successCount);
+            }
             return !hasErrors;
         }
 
