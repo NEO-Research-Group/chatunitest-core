@@ -21,4 +21,18 @@ To help you correctly fix the unit test file, we provide the brief information a
     ```
 </#list>
 
+<#list ext_c_deps as key, value>
+    The brief information of dependent class `${key}` is
+    ```[java]
+    ${value}
+    ```
+</#list>
+
+<#list ext_m_deps as key, value>
+    The brief information of dependent class `${key}` is
+    ```[java]
+    ${value}
+    ```
+</#list>
+
 You have known enough for understanding and using the method-to-test. Please follow the user's instructions and requirements to fix the unit test provided by the user.
