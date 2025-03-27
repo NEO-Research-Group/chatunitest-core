@@ -66,7 +66,8 @@ public class SofiaRunner extends MethodRunner {
                 continue;
             }
 
-            promptInfo.addConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
+            promptInfo.addConstructorDeps(depClassName, getDepInfo(config, depClassName, depMethods));
+            promptInfo.addExternalConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, promptInfo));
         }
 
         for (Map.Entry<String, Set<String>> entry : methodInfo.dependentMethods.entrySet()) {
@@ -86,7 +87,8 @@ public class SofiaRunner extends MethodRunner {
             }
 
             Set<String> depMethods = entry.getValue();
-            promptInfo.addMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
+            promptInfo.addMethodDeps(depClassName, getDepInfo(config, depClassName, depMethods));
+            promptInfo.addExternalMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, promptInfo));
             addMethodDepsByDepth(config, depClassName, depMethods, promptInfo, config.getDependencyDepth());
         }
 
@@ -123,7 +125,7 @@ public class SofiaRunner extends MethodRunner {
         return promptInfo;
     }
 
-    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods, PromptInfo promptInfo) throws IOException {
+    public static String getDepInfo(Config config, String depClassName, PromptInfo promptInfo) throws IOException {
         ClassInfo depClassInfo = getClassInfo(config, depClassName);
         if (depClassInfo == null) {
             try {
@@ -135,37 +137,9 @@ public class SofiaRunner extends MethodRunner {
             } catch (Exception e) {
                 return null;
             }
+        } else {
+            return null;
         }
-
-        String classSig = depClassInfo.classSignature;
-        String fields = joinLines(depClassInfo.fields);
-
-        String basicInfo = depClassInfo.packageName + "\n" + joinLines(depClassInfo.imports) + "\n"
-                + classSig + " {\n" + fields + "\n";
-        if (depClassInfo.hasConstructor) {
-            String constructors = "";
-            for (String sig : depClassInfo.constructorSigs) {
-                MethodInfo depConstructorInfo = getMethodInfo(config, depClassInfo, sig);
-                if (depConstructorInfo == null) {
-                    continue;
-                }
-                constructors += depConstructorInfo.getSourceCode() + "\n";
-            }
-
-            basicInfo += constructors + "\n";
-        }
-
-        String sourceDepMethods = "";
-        for (String sig : depMethods) {
-            //TODO: identify used fields in dependent class
-            MethodInfo depMethodInfo = getMethodInfo(config, depClassInfo, sig);
-            if (depMethodInfo == null) {
-                continue;
-            }
-            sourceDepMethods += depMethodInfo.getSourceCode() + "\n";
-        }
-        String getterSetter = joinLines(depClassInfo.getterSetterBrief) + "\n";
-        return basicInfo + getterSetter + sourceDepMethods + "}";
     }
 
     public static String getSourceCode(String className) {
@@ -176,7 +150,7 @@ public class SofiaRunner extends MethodRunner {
                 if (jarFile.exists()) {
                     String decompiledClass = decompileClassFromJar(jarFile, classPath);
                     if (decompiledClass != null) {
-                        return decompiledClass;
+                        return removeLeadingJavadoc(decompiledClass);
                     }
                 }
             } catch(Exception e) {
@@ -237,6 +211,10 @@ public class SofiaRunner extends MethodRunner {
 
             return tempFile;
         }
+    }
+
+    public static String removeLeadingJavadoc(String source) {
+        return source.replaceFirst("(?s)^Analysing.*?\\R*/\\*.*?\\*/\\s*", "");
     }
 
 }

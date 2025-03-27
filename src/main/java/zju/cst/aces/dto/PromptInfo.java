@@ -20,6 +20,8 @@ public class PromptInfo {
     public String otherMethodBodies;
     public Map<String, String> constructorDeps = new HashMap<>(); // dependent classes in constructor.
     public Map<String, String> methodDeps = new HashMap<>(); // dependent classes in method parameters and body.
+    public Map<String, String> externalConstructorDeps = new HashMap<>(); // dependent classes in constructor.
+    public Map<String, String> externalMethodDeps = new HashMap<>(); // dependent classes in constructor.
     public TestMessage errorMsg;
     public String unitTest = "";
     public String fullTestName;
@@ -85,6 +87,20 @@ public class PromptInfo {
             return;
         }
         this.constructorDeps.put(depClassName, constructorDep);
+    }
+
+    public void addExternalMethodDeps(String depClassName, String methodDep) {
+        if (methodDep == null) {
+            return;
+        }
+        this.externalMethodDeps.put(depClassName, methodDep);
+    }
+
+    public void addExternalConstructorDeps(String depClassName, String constructorDep) {
+        if (constructorDep == null) {
+            return;
+        }
+        this.externalConstructorDeps.put(depClassName, constructorDep);
     }
 
     public void addCorrectTest(MethodDeclaration m) {

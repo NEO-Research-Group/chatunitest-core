@@ -31,3 +31,12 @@ Information of the focal method is
     The brief information of dependent class `${key}` is
     ```${m_deps[key]}```.
 </#list>
+<#list ext_c_deps?keys as key>
+    The source code of external dependent class `${key}` is
+    ```${ext_c_deps[key]}```.
+</#list>
+<#list ext_m_deps?keys as key>
+    The source code of external dependent class `${key}` is
+    ```${ext_m_deps[key]}```.
+</#list>
+

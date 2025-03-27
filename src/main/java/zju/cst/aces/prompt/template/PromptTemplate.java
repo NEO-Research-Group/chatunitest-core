@@ -108,6 +108,9 @@ public class PromptTemplate {
         Map<String, String> cdep_temp = new HashMap<>();
         Map<String, String> mdep_temp = new HashMap<>();
 
+        Map<String, String> ext_cdep_temp = new HashMap<>();
+        Map<String, String> ext_mdep_temp = new HashMap<>();
+
         this.dataModel.put("unit_test", promptInfo.getUnitTest());
         // Map<String, String>, key: dependent class names
         this.dataModel.put("dep_packages", getDepPackages(promptInfo.getClassInfo(), promptInfo.getMethodInfo()));
@@ -193,8 +196,18 @@ public class PromptTemplate {
         for (Map.Entry<String, String> entry : promptInfo.getMethodDeps().entrySet()) {
             mdep_temp.put(entry.getKey(), entry.getValue());
         }
+
+        for (Map.Entry<String, String> entry : promptInfo.getExternalConstructorDeps().entrySet()) {
+            ext_cdep_temp.put(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, String> entry : promptInfo.getExternalMethodDeps().entrySet()) {
+            ext_mdep_temp.put(entry.getKey(), entry.getValue());
+        }
+
         this.dataModel.put("c_deps", cdep_temp);
         this.dataModel.put("m_deps", mdep_temp);
+        this.dataModel.put("ext_c_deps", ext_cdep_temp);
+        this.dataModel.put("ext_m_deps", ext_mdep_temp);
         this.dataModel.put("full_fm", promptInfo.getContext());
 
 
