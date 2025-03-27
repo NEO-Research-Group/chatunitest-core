@@ -358,52 +358,6 @@ public abstract class AbstractRunner {
         return mi.sourceCode;
     }
 
-    public void exportRecord(PromptInfo promptInfo, ClassInfo classInfo, int attempt, float duration, boolean success) {
-        String methodIndex = classInfo.methodSigs.get(promptInfo.methodSignature);
-        Path recordPath = config.getHistoryPath();
-
-        recordPath = recordPath.resolve("class" + classInfo.index);
-        exportMethodMapping(classInfo, recordPath);
-
-        recordPath = recordPath.resolve("method" + methodIndex);
-        exportAttemptMapping(promptInfo, recordPath, duration, success);
-
-        recordPath = recordPath.resolve("attempt" + attempt);
-        if (!recordPath.toFile().exists()) {
-            recordPath.toFile().mkdirs();
-        }
-        File recordFile = recordPath.resolve("records.json").toFile();
-        try (OutputStreamWriter writer = new OutputStreamWriter(
-                new FileOutputStream(recordFile), StandardCharsets.UTF_8)) {
-            writer.write(GSON.toJson(promptInfo.getRecords()));
-        } catch (IOException e) {
-            throw new RuntimeException("In AbstractRunner.exportRecord: " + e);
-        }
-    }
-
-    public void exportRecord(PromptInfo promptInfo, ClassInfo classInfo, int attempt, float duration, int nSlices, int successfulSlices) {
-        String methodIndex = classInfo.methodSigs.get(promptInfo.methodSignature);
-        Path recordPath = config.getHistoryPath();
-
-        recordPath = recordPath.resolve("class" + classInfo.index);
-        exportMethodMapping(classInfo, recordPath);
-
-        recordPath = recordPath.resolve("method" + methodIndex);
-        exportAttemptMapping(promptInfo, recordPath, duration, nSlices, successfulSlices);
-
-        recordPath = recordPath.resolve("attempt" + attempt);
-        if (!recordPath.toFile().exists()) {
-            recordPath.toFile().mkdirs();
-        }
-        File recordFile = recordPath.resolve("records.json").toFile();
-        try (OutputStreamWriter writer = new OutputStreamWriter(
-                new FileOutputStream(recordFile), StandardCharsets.UTF_8)) {
-            writer.write(GSON.toJson(promptInfo.getRecords()));
-        } catch (IOException e) {
-            throw new RuntimeException("In AbstractRunner.exportRecord: " + e);
-        }
-    }
-
     public void exportRecord(PromptInfo promptInfo, ClassInfo classInfo, int attempt) {
         String methodIndex = classInfo.methodSigs.get(promptInfo.methodSignature);
         Path recordPath = config.getHistoryPath();
@@ -496,15 +450,7 @@ public abstract class AbstractRunner {
         }
     }
 
-    public void exportAttemptMapping(PromptInfo promptInfo, Path savePath, float duration, boolean success) {
-        if (!savePath.toFile().exists()) {
-            savePath.toFile().mkdirs();
-        }
-        File attemptMappingFile = savePath.resolve("attemptMapping.json").toFile();
-        if (attemptMappingFile.exists()) {
-            return;
-        }
-
+    public void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -524,14 +470,13 @@ public abstract class AbstractRunner {
             map.put("time", String.valueOf(duration));
             map.put("success", String.valueOf(success));
             map.put("round", String.valueOf(promptInfo.round));
-            map.put("tokenConsumption", String.valueOf(promptInfo.getTokenCount()));
+            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
             if (config.getPhaseType().equals("SOFIA"))
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
         }
-        try (OutputStreamWriter writer = new OutputStreamWriter(
-                new FileOutputStream(attemptMappingFile), StandardCharsets.UTF_8)) {
-            writer.write(GSON.toJson(attemptMapping));
+        try {
 
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
@@ -544,16 +489,8 @@ public abstract class AbstractRunner {
             } else {
                 jsonArray = new JsonArray(); // If file does not exist, create an empty array
             }
-
             // Append the new data
             jsonArray.add(newElement);
-
-            // Write back to the file
-            //Writer infoWriter = Files.newBufferedWriter(outputInfo.toPath());
-            //gson.toJson(jsonArray, infoWriter);
-
-            //OutputStreamWriter infoWriter = new OutputStreamWriter(new FileOutputStream(outputInfo), StandardCharsets.UTF_8);
-            //infoWriter.write(GSON.toJson(jsonArray));
 
             try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
                 gson.toJson(jsonArray, infoWriter);
@@ -561,16 +498,11 @@ public abstract class AbstractRunner {
             }
 
         } catch (IOException e) {
-            throw new RuntimeException("In AbstractRunner.exportAttemptMapping: " + e);
+            throw new RuntimeException("In AbstractRunner.generateJsonReport: " + e);
         }
     }
 
-    public void exportAttemptMapping(PromptInfo promptInfo, Path savePath, float duration, int nSlices, int successfulSlices) {
-        if (!savePath.toFile().exists()) {
-            savePath.toFile().mkdirs();
-        }
-        File attemptMappingFile = savePath.resolve("attemptMapping.json").toFile();
-
+    public void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -590,16 +522,13 @@ public abstract class AbstractRunner {
             map.put("time", String.valueOf(duration));
             map.put("totalSlices", String.valueOf(nSlices));
             map.put("successfulSlices", String.valueOf(successfulSlices));
-            map.put("tokenConsumption", String.valueOf(promptInfo.getTokenCount()));
+            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
             if (config.getPhaseType().equals("SOFIA_HITS"))
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
         }
-        try (OutputStreamWriter writer = new OutputStreamWriter(
-                new FileOutputStream(attemptMappingFile), StandardCharsets.UTF_8)) {
-            writer.write(GSON.toJson(attemptMapping));
-
-
+        try {
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
 
@@ -612,26 +541,16 @@ public abstract class AbstractRunner {
                 jsonArray = new JsonArray(); // If file does not exist, create an empty array
             }
 
-
             // Append the new data
             jsonArray.add(newElement);
-
-
-            // Write back to the file
-            //Writer infoWriter = Files.newBufferedWriter(outputInfo.toPath());
-            //gson.toJson(jsonArray, infoWriter);
-
-            //OutputStreamWriter infoWriter = new OutputStreamWriter(new FileOutputStream(outputInfo), StandardCharsets.UTF_8);
-            //infoWriter.write(GSON.toJson(jsonArray));
 
             try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
                 gson.toJson(jsonArray, infoWriter);
                 infoWriter.flush(); // Ensure all data is written
             }
 
-
         } catch (IOException e) {
-            throw new RuntimeException("In AbstractRunner.exportAttemptMapping: " + e);
+            throw new RuntimeException("In AbstractRunner.generateJsonReport: " + e);
         }
     }
 
