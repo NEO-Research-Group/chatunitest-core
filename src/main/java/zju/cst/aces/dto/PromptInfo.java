@@ -133,6 +133,22 @@ public class PromptInfo {
         return tokenSum;
     }
 
+    public Integer getInputTokenCount() {
+        Integer tokenSum = 0;
+        for (RoundRecord r : records) {
+            tokenSum += r.getPromptToken();
+        }
+        return tokenSum;
+    }
+
+    public Integer getOutputTokenCount() {
+        Integer tokenSum = 0;
+        for (RoundRecord r : records) {
+            tokenSum += r.getResponseToken();
+        }
+        return tokenSum;
+    }
+
     public void incrementSofiaActivations() {
         sofiaActivations++;
     }

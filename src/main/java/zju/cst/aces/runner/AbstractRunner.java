@@ -524,7 +524,8 @@ public abstract class AbstractRunner {
             map.put("time", String.valueOf(duration));
             map.put("success", String.valueOf(success));
             map.put("round", String.valueOf(promptInfo.round));
-            map.put("tokenConsumption", String.valueOf(promptInfo.getTokenCount()));
+            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
             if (config.getPhaseType().equals("SOFIA"))
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
@@ -590,7 +591,8 @@ public abstract class AbstractRunner {
             map.put("time", String.valueOf(duration));
             map.put("totalSlices", String.valueOf(nSlices));
             map.put("successfulSlices", String.valueOf(successfulSlices));
-            map.put("tokenConsumption", String.valueOf(promptInfo.getTokenCount()));
+            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
             if (config.getPhaseType().equals("SOFIA_HITS"))
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
