@@ -40,7 +40,7 @@ public class RunnerImpl implements Runner {
                 new ChatTesterRunner(config, fullClassName, methodInfo).start();
                 break;
             case "HITS":
-                new HITSRunner(config, fullClassName, methodInfo).start();
+                new ExpHITSRunner(config, fullClassName, methodInfo).start();
                 break;
             case "SOFIA":
                 new SofiaRunner(config, fullClassName, methodInfo).start();

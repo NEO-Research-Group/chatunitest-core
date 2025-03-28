@@ -105,7 +105,7 @@ public class ClassRunner extends AbstractRunner {
                 break;
             case "HITS":
 //                config.getLogger().warn("HITS will be ignored!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                new HITSRunner(config, fullClassName, methodInfo).start();
+                new ExpHITSRunner(config, fullClassName, methodInfo).start();
                 break;
             case "MUTAP":
                 new MUTAPRunner(config, fullClassName, methodInfo).start();
