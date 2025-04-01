@@ -42,6 +42,7 @@ public class AskGPT {
                 payload.put("messages", chatMessages);
                 payload.put("model", modelConfig.getModelName());
                 payload.put("temperature", config.getTemperature());
+                payload.put("random_seed", 42);
                 payload.put("frequency_penalty", config.getFrequencyPenalty());
                 payload.put("presence_penalty", config.getPresencePenalty());
                 payload.put("max_tokens", config.getMaxResponseTokens());
