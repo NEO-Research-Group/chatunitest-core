@@ -217,7 +217,11 @@ public class ClassParser {
         return descriptor.toString();
     }
 
+
     private String toJVMDescriptor(String type) {
+        // Remove generics (everything inside < >)
+        type = type.replaceAll("<.*?>", "");
+
         switch (type) {
             case "int": return "I";
             case "boolean": return "Z";
@@ -235,6 +239,8 @@ public class ClassParser {
                 return "L" + type.replace('.', '/') + ";"; // Convert fully qualified names
         }
     }
+
+
 
     private Map<String, Set<String>> getConstructorDeps(CompilationUnit cu, ClassOrInterfaceDeclaration classNode) {
         Map<String, Set<String>> constructorDeps = new LinkedHashMap<>();
