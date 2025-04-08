@@ -64,7 +64,7 @@ public class MethodRunner extends ClassRunner {
         PromptConstructorImpl pc = phase.generatePrompt(classInfo, methodInfo,num);
         PromptInfo promptInfo = pc.getPromptInfo();
 
-        config.getLogger().info("SOFIA ACTIVATIONS NUMBER: " + promptInfo.sofiaActivations);
+        config.getLogger().debug("SOFIA ACTIVATIONS NUMBER: " + promptInfo.sofiaActivations);
         if (promptInfo.sofiaActivations == 0) {
             return false;
         }
