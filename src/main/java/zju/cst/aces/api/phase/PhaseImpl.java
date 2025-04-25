@@ -20,6 +20,8 @@ public class PhaseImpl implements Phase {
         CHATTESTER,
         MUTAP,
         SOFIA,
+        SOFIA_OLD,
+        CHATUNITEST_NEW,
         SOFIA_HITS
     }
 
@@ -94,6 +96,7 @@ public class PhaseImpl implements Phase {
                 case MUTAP:
                     return new MUTAP(config);
                 case SOFIA:
+                case SOFIA_OLD:
                     return new SOFIA(config);
                 case SOFIA_HITS:
                     return new SOFIA_HITS(config);

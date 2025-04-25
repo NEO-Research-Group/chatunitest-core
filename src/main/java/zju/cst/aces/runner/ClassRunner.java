@@ -111,6 +111,7 @@ public class ClassRunner extends AbstractRunner {
                 new MUTAPRunner(config, fullClassName, methodInfo).start();
                 break;
             case "SOFIA":
+            case "SOFIA_OLD":
                 new SofiaRunner(config, fullClassName, methodInfo).start();
                 break;
             case "SOFIA_HITS":
