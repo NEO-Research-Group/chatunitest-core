@@ -1,15 +1,22 @@
 package zju.cst.aces.runner.solution_runner;
 
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParserConfiguration;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.CallableDeclaration;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.Parameter;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
 import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.repository.RepositorySystem;
 import org.benf.cfr.reader.api.CfrDriver;
 import org.benf.cfr.reader.api.OutputSinkFactory;
+import org.jgrapht.generate.StarGraphGenerator;
 import zju.cst.aces.api.Logger;
 import zju.cst.aces.api.Task;
 import zju.cst.aces.api.config.Config;
@@ -27,6 +34,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 public class SofiaRunner extends MethodRunner {
 
@@ -67,7 +75,7 @@ public class SofiaRunner extends MethodRunner {
             }
 
             promptInfo.addConstructorDeps(depClassName, getDepInfo(config, depClassName, depMethods));
-            promptInfo.addExternalConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, promptInfo));
+            promptInfo.addExternalConstructorDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
         }
 
         for (Map.Entry<String, Set<String>> entry : methodInfo.dependentMethods.entrySet()) {
@@ -88,7 +96,7 @@ public class SofiaRunner extends MethodRunner {
 
             Set<String> depMethods = entry.getValue();
             promptInfo.addMethodDeps(depClassName, getDepInfo(config, depClassName, depMethods));
-            promptInfo.addExternalMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, promptInfo));
+            promptInfo.addExternalMethodDeps(depClassName, SofiaRunner.getDepInfo(config, depClassName, depMethods, promptInfo));
             addMethodDepsByDepth(config, depClassName, depMethods, promptInfo, config.getDependencyDepth());
         }
 
@@ -125,11 +133,11 @@ public class SofiaRunner extends MethodRunner {
         return promptInfo;
     }
 
-    public static String getDepInfo(Config config, String depClassName, PromptInfo promptInfo) throws IOException {
+    public static String getDepInfo(Config config, String depClassName, Set<String> depMethods, PromptInfo promptInfo) throws IOException {
         ClassInfo depClassInfo = getClassInfo(config, depClassName);
         if (depClassInfo == null) {
             try {
-                String sourceCode = getSourceCode(depClassName);
+                String sourceCode = getSourceCode(depClassName, depMethods);
                 if (sourceCode != null) {
                     promptInfo.incrementSofiaActivations();
                 }
@@ -142,7 +150,7 @@ public class SofiaRunner extends MethodRunner {
         }
     }
 
-    public static String getSourceCode(String className) {
+    public static String getSourceCode(String className, Set<String> depMethods) {
         String classPath = className.replace('.', '/') + ".class";
         for (String dependency : dependencies) {
             try {
@@ -150,7 +158,7 @@ public class SofiaRunner extends MethodRunner {
                 if (jarFile.exists()) {
                     String decompiledClass = decompileClassFromJar(jarFile, classPath);
                     if (decompiledClass != null) {
-                        return removeLeadingJavadoc(decompiledClass);
+                        return removeWorthlessMethods(decompiledClass, depMethods);
                     }
                 }
             } catch(Exception e) {
@@ -213,9 +221,47 @@ public class SofiaRunner extends MethodRunner {
         }
     }
 
+    public static String removeWorthlessMethods(String source, Set<String> depMethods) {
+        ParserConfiguration config = new ParserConfiguration()
+                .setAttributeComments(false) // ignora comentarios mal ubicados
+                .setDoNotAssignCommentsPrecedingEmptyLines(true)
+                .setLanguageLevel(ParserConfiguration.LanguageLevel.BLEEDING_EDGE)
+                .setStoreTokens(false); // no guarda tokens, consume menos memoria
+        JavaParser parser = new JavaParser(config);
+        String sourceWithoutJavadoc = removeLeadingJavadoc(source);
+        CompilationUnit cu = parser.parse(sourceWithoutJavadoc).getResult().orElseThrow(() -> new RuntimeException("Parsing failed"));
+
+        logger.info("DepMethods size: " + depMethods.size());
+        logger.info(String.valueOf(cu.findAll(ClassOrInterfaceDeclaration.class).isEmpty()));
+        if (cu.findAll(ClassOrInterfaceDeclaration.class).isEmpty())
+            logger.info(depMethods.stream().findFirst().get());
+
+        cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
+            List<MethodDeclaration> methodsToKeep = clazz.getMethods().stream()
+                    .filter(method -> {
+                        String name = method.getNameAsString();
+                        List<String> paramTypes = method.getParameters().stream()
+                                .map(p -> p.getType().asString().replaceAll("\\s+", ""))
+                                .collect(Collectors.toList());
+                        String fullSignature = name + "(" + String.join(", ", paramTypes) + ")";
+                        return depMethods.contains(fullSignature);
+                    })
+                    .collect(Collectors.toList());
+
+            // Remove all methods
+            clazz.getMembers().removeIf(member -> member instanceof MethodDeclaration);
+
+            // Add only the matched method(s)
+            clazz.getMembers().addAll(methodsToKeep);
+        });
+
+        return cu.toString();
+    }
+
     public static String removeLeadingJavadoc(String source) {
         return source.replaceFirst("(?s)^Analysing.*?\\R*/\\*.*?\\*/\\s*", "");
     }
+
 
 }
 
