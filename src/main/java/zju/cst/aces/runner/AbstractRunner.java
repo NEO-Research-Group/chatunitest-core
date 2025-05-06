@@ -450,7 +450,7 @@ public abstract class AbstractRunner {
         }
     }
 
-    public void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
+    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -504,7 +504,7 @@ public abstract class AbstractRunner {
         }
     }
 
-    public void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
+    public synchronized void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
