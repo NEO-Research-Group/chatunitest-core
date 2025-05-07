@@ -450,7 +450,7 @@ public abstract class AbstractRunner {
         }
     }
 
-    public void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
+    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -478,33 +478,50 @@ public abstract class AbstractRunner {
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
             attemptMapping.put("attempt" + i, map);
         }
+
         try {
+            // Creates chatunitest-tests folder in case it does not exist
+            Files.createDirectories(outputPath);
 
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
 
-            JsonArray jsonArray;
-            if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
-                try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
-                    jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
-                }
-            } else {
-                jsonArray = new JsonArray(); // If file does not exist, create an empty array
-            }
-            // Append the new data
-            jsonArray.add(newElement);
+            // Validate the JSON element by serializing and then parsing it
+            try {
+                // Round-trip to detect structural issues
+                String jsonStr = gson.toJson(newElement);
+                JsonParser.parseString(jsonStr); // Will throw if malformed
 
-            try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
-                gson.toJson(jsonArray, infoWriter);
-                infoWriter.flush(); // Ensure all data is written
+                // Proceed to append only if valid
+                JsonArray jsonArray;
+                if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
+                    try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
+                        jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
+                    }
+                } else {
+                    jsonArray = new JsonArray(); // If file does not exist, create an empty array
+                }
+
+                // Append the validated element
+                jsonArray.add(newElement);
+
+                try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
+                    gson.toJson(jsonArray, infoWriter);
+                    infoWriter.flush(); // Ensure all data is written
+                }
+
+            } catch (JsonParseException ex) {
+                System.err.println("Skipping malformed JSON element: " + ex.getMessage());
+                // Optionally log the invalid object: System.err.println(gson.toJson(newElement));
             }
 
         } catch (IOException e) {
             throw new RuntimeException("In AbstractRunner.generateJsonReport: " + e);
         }
+
     }
 
-    public void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
+    public synchronized void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -533,24 +550,39 @@ public abstract class AbstractRunner {
             attemptMapping.put("attempt" + i, map);
         }
         try {
+            // Creates chatunitest-tests folder in case it does not exist
+            Files.createDirectories(outputPath);
+
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
 
-            JsonArray jsonArray;
-            if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
-                try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
-                    jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
+            // Validate the JSON element by serializing and then parsing it
+            try {
+                // Round-trip to detect structural issues
+                String jsonStr = gson.toJson(newElement);
+                JsonParser.parseString(jsonStr); // Will throw if malformed
+
+                // Proceed to append only if valid
+                JsonArray jsonArray;
+                if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
+                    try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
+                        jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
+                    }
+                } else {
+                    jsonArray = new JsonArray(); // If file does not exist, create an empty array
                 }
-            } else {
-                jsonArray = new JsonArray(); // If file does not exist, create an empty array
-            }
 
-            // Append the new data
-            jsonArray.add(newElement);
+                // Append the validated element
+                jsonArray.add(newElement);
 
-            try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
-                gson.toJson(jsonArray, infoWriter);
-                infoWriter.flush(); // Ensure all data is written
+                try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
+                    gson.toJson(jsonArray, infoWriter);
+                    infoWriter.flush(); // Ensure all data is written
+                }
+
+            } catch (JsonParseException ex) {
+                System.err.println("Skipping malformed JSON element: " + ex.getMessage());
+                // Optionally log the invalid object: System.err.println(gson.toJson(newElement));
             }
 
         } catch (IOException e) {
