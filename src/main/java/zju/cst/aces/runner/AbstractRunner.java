@@ -463,7 +463,6 @@ public abstract class AbstractRunner {
             map.put("projectName", config.project.getArtifactId());
             map.put("phaseType", config.phaseType);
             map.put("fullName", fullTestName);
-            map.put("path", promptInfo.getTestPath().toString());
             map.put("className", promptInfo.className);
             map.put("packageName", promptInfo.classInfo.packageName);
             map.put("methodName", promptInfo.methodName);
@@ -534,7 +533,6 @@ public abstract class AbstractRunner {
             map.put("projectName", config.project.getArtifactId());
             map.put("phaseType", config.phaseType);
             map.put("fullName", fullTestName);
-            map.put("path", promptInfo.getTestPath().toString());
             map.put("className", promptInfo.className);
             map.put("packageName", promptInfo.classInfo.packageName);
             map.put("methodName", promptInfo.methodName);
