@@ -231,11 +231,6 @@ public class SofiaRunner extends MethodRunner {
         String sourceWithoutJavadoc = removeLeadingJavadoc(source);
         CompilationUnit cu = parser.parse(sourceWithoutJavadoc).getResult().orElseThrow(() -> new RuntimeException("Parsing failed"));
 
-        logger.info("DepMethods size: " + depMethods.size());
-        logger.info(String.valueOf(cu.findAll(ClassOrInterfaceDeclaration.class).isEmpty()));
-        if (cu.findAll(ClassOrInterfaceDeclaration.class).isEmpty())
-            logger.info(depMethods.stream().findFirst().get());
-
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
             List<MethodDeclaration> methodsToKeep = clazz.getMethods().stream()
                     .filter(method -> {
