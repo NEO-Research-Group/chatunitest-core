@@ -467,7 +467,6 @@ public abstract class AbstractRunner {
             map.put("packageName", promptInfo.classInfo.packageName);
             map.put("methodName", promptInfo.methodName);
             map.put("methodSig", promptInfo.methodSignature);
-            map.put("methodDesc", promptInfo.methodDescriptor);
             map.put("time", String.valueOf(duration));
             map.put("success", String.valueOf(success));
             map.put("round", String.valueOf(promptInfo.round));
@@ -485,6 +484,8 @@ public abstract class AbstractRunner {
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(attemptMapping);
 
+            JsonArray jsonArray = null;
+
             // Validate the JSON element by serializing and then parsing it
             try {
                 // Round-trip to detect structural issues
@@ -492,7 +493,6 @@ public abstract class AbstractRunner {
                 JsonParser.parseString(jsonStr); // Will throw if malformed
 
                 // Proceed to append only if valid
-                JsonArray jsonArray;
                 if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
                     try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
                         jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
@@ -511,7 +511,7 @@ public abstract class AbstractRunner {
 
             } catch (JsonParseException ex) {
                 System.err.println("Skipping malformed JSON element: " + ex.getMessage());
-                // Optionally log the invalid object: System.err.println(gson.toJson(newElement));
+                System.err.println(gson.toJson(jsonArray.toString()));
             }
 
         } catch (IOException e) {
