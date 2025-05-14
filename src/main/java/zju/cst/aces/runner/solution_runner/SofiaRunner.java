@@ -3,22 +3,11 @@ package zju.cst.aces.runner.solution_runner;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.CallableDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.Parameter;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
-import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.repository.RepositorySystem;
 import org.benf.cfr.reader.api.CfrDriver;
 import org.benf.cfr.reader.api.OutputSinkFactory;
-import org.jgrapht.generate.StarGraphGenerator;
 import zju.cst.aces.api.Logger;
-import zju.cst.aces.api.Task;
 import zju.cst.aces.api.config.Config;
 import zju.cst.aces.dto.ClassInfo;
 import zju.cst.aces.dto.MethodInfo;
@@ -26,11 +15,7 @@ import zju.cst.aces.dto.PromptInfo;
 import zju.cst.aces.runner.MethodRunner;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -158,7 +143,7 @@ public class SofiaRunner extends MethodRunner {
                 if (jarFile.exists()) {
                     String decompiledClass = decompileClassFromJar(jarFile, classPath);
                     if (decompiledClass != null) {
-                        return removeWorthlessMethods(decompiledClass, depMethods);
+                        return removeLeadingJavadoc(decompiledClass);
                     }
                 }
             } catch(Exception e) {
