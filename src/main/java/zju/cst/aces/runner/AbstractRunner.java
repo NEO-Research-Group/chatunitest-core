@@ -454,17 +454,13 @@ public abstract class AbstractRunner {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
-        Map<String, Map<String, String>> attemptMapping = new TreeMap<>();
-        String fullNamePrefix = promptInfo.getFullTestName().substring(0, promptInfo.getFullTestName().indexOf("_Test") - 1);
+        Map<String, String> map = new LinkedHashMap<>();
+
         for (int i = 0; i < config.getTestNumber(); i++) {
-            Map<String, String> map = new LinkedHashMap<>();
-            String fullTestName = fullNamePrefix + i + "_Test";
-            map.put("testClassName", fullTestName.substring(fullTestName.lastIndexOf(".") + 1));
             map.put("projectName", config.project.getArtifactId());
             map.put("phaseType", config.phaseType);
-            map.put("fullName", fullTestName);
-            map.put("className", promptInfo.className);
             map.put("packageName", promptInfo.classInfo.packageName);
+            map.put("className", promptInfo.className);
             map.put("methodName", promptInfo.methodName);
             map.put("methodSig", promptInfo.methodSignature);
             map.put("time", String.valueOf(duration));
@@ -474,7 +470,6 @@ public abstract class AbstractRunner {
             map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
             if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD"))
                 map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
-            attemptMapping.put("attempt" + i, map);
         }
 
         try {
@@ -482,7 +477,7 @@ public abstract class AbstractRunner {
             Files.createDirectories(outputPath);
 
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            JsonElement newElement = gson.toJsonTree(attemptMapping);
+            JsonElement newElement = gson.toJsonTree(map);
 
             JsonArray jsonArray = null;
 
