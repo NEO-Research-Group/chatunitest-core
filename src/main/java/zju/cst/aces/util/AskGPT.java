@@ -27,6 +27,7 @@ public class AskGPT {
 
     public ChatResponse askChatGPT(List<ChatMessage> chatMessages) {
         String apiKey = config.getRandomKey();
+
         int maxTry = 5;
         while (maxTry > 0) {
             Response response = null;
@@ -51,14 +52,19 @@ public class AskGPT {
                 RequestBody body = RequestBody.create(MEDIA_TYPE, jsonPayload);
                 Request request = new Request.Builder().url(modelConfig.getUrl()).post(body).addHeader("Content-Type", "application/json").addHeader("Authorization", "Bearer " + apiKey).build();
 
-                do {
-                    response = config.getClient().newCall(request).execute();
-                    if (response.code() == 429) {
+                response = config.getClient().newCall(request).execute();
+
+                int counter = 0;
+                while (response.code() == 429) {
+                    if (counter++ > 5) {
+                        config.getLogger().info("LLM Big Cooldown...");
+                        Thread.sleep(3600 * 2 * 1000);
+                    } else {
                         config.getLogger().info("LLM Cooldown...");
                         Thread.sleep(30 * 1000);
                     }
-                } while (response.code() == 429);
-
+                    response = config.getClient().newCall(request).execute();
+                }
 
                 if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
                 try {
