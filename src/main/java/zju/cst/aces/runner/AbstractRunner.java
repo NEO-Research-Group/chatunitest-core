@@ -456,21 +456,19 @@ public abstract class AbstractRunner {
 
         Map<String, String> map = new LinkedHashMap<>();
 
-        for (int i = 0; i < config.getTestNumber(); i++) {
-            map.put("projectName", config.project.getArtifactId());
-            map.put("phaseType", config.phaseType);
-            map.put("packageName", promptInfo.classInfo.packageName);
-            map.put("className", promptInfo.className);
-            map.put("methodName", promptInfo.methodName);
-            map.put("methodSig", promptInfo.methodSignature);
-            map.put("time", String.valueOf(duration));
-            map.put("success", String.valueOf(success));
-            map.put("round", String.valueOf(promptInfo.round));
-            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
-            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
-            if (config.getPhaseType().equals("SOFIA"))
-                map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
-        }
+        map.put("projectName", config.project.getArtifactId());
+        map.put("phaseType", config.phaseType);
+        map.put("packageName", promptInfo.classInfo.packageName);
+        map.put("className", promptInfo.className);
+        map.put("methodName", promptInfo.methodName);
+        map.put("methodSig", promptInfo.methodSignature);
+        map.put("time", String.valueOf(duration));
+        map.put("success", String.valueOf(success));
+        map.put("round", String.valueOf(promptInfo.round));
+        map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+        map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
+        if (config.getPhaseType().equals("SOFIA"))
+            map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
 
         try {
             // Creates chatunitest-tests folder in case it does not exist
