@@ -5,6 +5,7 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import zju.cst.aces.api.Task;
 import zju.cst.aces.api.config.Config;
@@ -17,6 +18,9 @@ import zju.cst.aces.util.TokenCounter;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -24,6 +28,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public abstract class AbstractRunner {
+
+    private static final Object JSON_REPORT_LOCK = new Object();
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     public static final String separator = "_";
@@ -455,64 +461,57 @@ public abstract class AbstractRunner {
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
         Map<String, String> map = new LinkedHashMap<>();
-
-        for (int i = 0; i < config.getTestNumber(); i++) {
-            map.put("projectName", config.project.getArtifactId());
-            map.put("phaseType", config.phaseType);
-            map.put("packageName", promptInfo.classInfo.packageName);
-            map.put("className", promptInfo.className);
-            map.put("methodName", promptInfo.methodName);
-            map.put("methodSig", promptInfo.methodSignature);
-            map.put("time", String.valueOf(duration));
-            map.put("success", String.valueOf(success));
-            map.put("round", String.valueOf(promptInfo.round));
-            map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
-            map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
-            if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD"))
-                map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
-        }
+        map.put("projectName", config.project.getArtifactId());
+        map.put("phaseType", config.phaseType);
+        map.put("packageName", promptInfo.classInfo.packageName);
+        map.put("className", promptInfo.className);
+        map.put("methodName", promptInfo.methodName);
+        map.put("methodSig", promptInfo.methodSignature);
+        map.put("time", String.valueOf(duration));
+        map.put("success", String.valueOf(success));
+        map.put("round", String.valueOf(promptInfo.round));
+        map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
+        map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
+        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD"))
+            map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
 
         try {
-            // Creates chatunitest-tests folder in case it does not exist
             Files.createDirectories(outputPath);
 
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
             JsonElement newElement = gson.toJsonTree(map);
 
-            JsonArray jsonArray = null;
+            synchronized (JSON_REPORT_LOCK) {
+                try (RandomAccessFile raf = new RandomAccessFile(outputInfo, "rw");
+                     FileChannel channel = raf.getChannel();
+                     FileLock lock = channel.lock()) {
 
-            // Validate the JSON element by serializing and then parsing it
-            try {
-                // Round-trip to detect structural issues
-                String jsonStr = gson.toJson(newElement);
-                JsonParser.parseString(jsonStr); // Will throw if malformed
-
-                // Proceed to append only if valid
-                if (outputInfo.exists() && Files.size(outputInfo.toPath()) > 0) {
-                    try (Reader reader = Files.newBufferedReader(outputInfo.toPath())) {
-                        jsonArray = JsonParser.parseReader(reader).getAsJsonArray();
+                    // Read existing content
+                    JsonArray jsonArray;
+                    raf.seek(0);
+                    byte[] bytes = new byte[(int) channel.size()];
+                    if (bytes.length > 0) {
+                        raf.readFully(bytes);
+                        String content = new String(bytes, StandardCharsets.UTF_8);
+                        jsonArray = JsonParser.parseString(content).getAsJsonArray();
+                    } else {
+                        jsonArray = new JsonArray();
                     }
-                } else {
-                    jsonArray = new JsonArray(); // If file does not exist, create an empty array
+
+                    // Add new element
+                    jsonArray.add(newElement);
+
+                    // Truncate and write new content
+                    String updatedContent = gson.toJson(jsonArray);
+                    channel.truncate(0);
+                    raf.seek(0);
+                    raf.write(updatedContent.getBytes(StandardCharsets.UTF_8));
                 }
-
-                // Append the validated element
-                jsonArray.add(newElement);
-
-                try (Writer infoWriter = new FileWriter(outputInfo, false)) { // Overwrite mode
-                    gson.toJson(jsonArray, infoWriter);
-                    infoWriter.flush(); // Ensure all data is written
-                }
-
-            } catch (JsonParseException ex) {
-                System.err.println("Skipping malformed JSON element: " + ex.getMessage());
-                System.err.println(gson.toJson(jsonArray.toString()));
             }
 
         } catch (IOException e) {
             throw new RuntimeException("In AbstractRunner.generateJsonReport: " + e);
         }
-
     }
 
     public synchronized void generateJsonReportHITS(PromptInfo promptInfo, float duration, int nSlices, int successfulSlices) {
