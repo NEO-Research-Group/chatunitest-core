@@ -175,7 +175,16 @@ public class SofiaRunner extends MethodRunner {
             }
         };
 
+        // CFR options for safer decompilation
+        Map<String, String> options = new HashMap<String, String>();
+        options.put("recover", "true");
+        options.put("hideutf", "true");
+        options.put("decodesignatures", "false");
+        options.put("comments", "false");
+
+
         CfrDriver driver = new CfrDriver.Builder()
+                .withOptions(options)
                 .withOutputSink(mySink)
                 .build();
 
