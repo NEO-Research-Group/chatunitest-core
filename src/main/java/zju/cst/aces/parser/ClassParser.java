@@ -181,8 +181,7 @@ public class ClassParser {
                 getDependentMethods(cu, node),
                 node.toString(),
                 getMethodComment(node),
-                getMethodAnnotation(node),
-                getMethodDescriptor(node)
+                getMethodAnnotation(node)
         );
         mi.setUseField(useField(node));
         mi.setConstructor(node.isConstructorDeclaration());
