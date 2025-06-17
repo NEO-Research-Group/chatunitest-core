@@ -1,15 +1,22 @@
 package zju.cst.aces.runner;
 
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.NodeList;
 import zju.cst.aces.api.phase.Phase;
 import zju.cst.aces.api.phase.PhaseImpl;
 import zju.cst.aces.api.config.Config;
 import zju.cst.aces.api.impl.PromptConstructorImpl;
+import zju.cst.aces.coverage.CodeCoverageAnalyzer;
+import zju.cst.aces.coverage.CodeCoverageAnalyzerSofia;
 import zju.cst.aces.dto.*;
+import zju.cst.aces.parser.ProjectParser;
+import zju.cst.aces.util.telpa.JavaParserUtil;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class MethodRunner extends ClassRunner {
 
@@ -82,7 +89,8 @@ public class MethodRunner extends ClassRunner {
             if (config.generateJsonReport) {
                 long endTime = System.nanoTime();
                 float duration = (float)(endTime - startTime)/ 1_000_000_000;
-                generateJsonReport(pc.getPromptInfo(), duration, true);
+                String branchCoveragePercentage = getCoverage(classInfo, methodInfo, pc.getPromptInfo());
+                generateJsonReport(pc.getPromptInfo(), duration, true, branchCoveragePercentage);
             }
 
             return true;
@@ -103,7 +111,8 @@ public class MethodRunner extends ClassRunner {
                 if (config.generateJsonReport) {
                     long endTime = System.nanoTime();
                     float duration = (float) (endTime - startTime) / 1_000_000_000;
-                    generateJsonReport(pc.getPromptInfo(), duration, true);
+                    String branchCoveragePercentage = getCoverage(classInfo, methodInfo, pc.getPromptInfo());
+                    generateJsonReport(pc.getPromptInfo(), duration, true, branchCoveragePercentage);
                 }
                 return true;
             }
@@ -114,8 +123,28 @@ public class MethodRunner extends ClassRunner {
         if (config.generateJsonReport) {
             long endTime = System.nanoTime();
             float duration = (float) (endTime - startTime) / 1_000_000_000;
-            generateJsonReport(pc.getPromptInfo(), duration, false);
+            generateJsonReport(pc.getPromptInfo(), duration, false, "0.0");
         }
         return false;
+    }
+
+    public String getCoverage(ClassInfo classInfo, MethodInfo methodInfo, PromptInfo promptInfo) {
+        Map<String, Object> coverageInfo = new HashMap<>();
+
+        try {
+            coverageInfo = new CodeCoverageAnalyzerSofia().analyzeCoverage(
+                    promptInfo.getUnitTest(), promptInfo.getFullTestName(),
+                    classInfo.getFullClassName(),
+                    methodInfo.getMethodSignature(),
+                    config.project.getBuildPath().toString(),
+                    config.project.getCompileSourceRoots().get(0),
+                    config.classPaths
+            );
+        } catch (Exception e) {
+            config.getLogger().info("Error during code coverage analysis: " + e.getMessage());
+            return "Error during code coverage analysis";
+        }
+
+        return String.valueOf(coverageInfo.get("branchCoverage"));
     }
 }

@@ -184,7 +184,7 @@ public class CodeCoverageAnalyzer {
                 for (IMethodCoverage mc : cc.getMethods()) {
                     String methodSig = getMethodSignature(mc.getName(), mc.getDesc());
                     //方法签名，对应class-info的"methodSignature"
-                    if (methodSig.equals(methodSignature)) {
+                    if (normalizeInnerClassNotation(methodSig).equals(normalizeInnerClassNotation(methodSignature))) {
                         resultMap.put("instructionCoverage", getCoveragePercentage(mc.getInstructionCounter()));
                         resultMap.put("branchCoverage", getCoveragePercentage(mc.getBranchCounter()));
                         resultMap.put("lineCoverage", getCoveragePercentage(mc.getLineCounter()));
@@ -244,6 +244,118 @@ public class CodeCoverageAnalyzer {
         }
 
         result.append(")");
+        return result.toString();
+    }
+
+    /**
+     * Normalizes inner class notation by replacing both dollar signs and dots with a consistent format.
+     * This helps match signatures like AppConfig.SparkCluster with AppConfig$SparkCluster
+     *
+     * @param signature The method signature to normalize
+     * @return The normalized signature
+     */
+    private static String normalizeInnerClassNotation(String signature) {
+        // Replace all inner class dot notations with dollar signs to match Java bytecode format
+        StringBuilder normalizedSignature = new StringBuilder(signature);
+
+        // Replace dots with dollar signs in class names, but be careful not to replace dots in package names
+        // and method parameter lists
+        int openParenIndex = normalizedSignature.indexOf("(");
+        if (openParenIndex > 0) {
+            // Only process the parameter list
+            int closeParenIndex = normalizedSignature.indexOf(")", openParenIndex);
+            if (closeParenIndex > 0) {
+                String parameterList = normalizedSignature.substring(openParenIndex + 1, closeParenIndex);
+                // Split by commas to get individual parameters
+                String[] parameters = parameterList.split(", ");
+                for (int i = 0; i < parameters.length; i++) {
+                    parameters[i] = normalizeClassNames(parameters[i]);
+                }
+
+                // Reconstruct the signature
+                StringBuilder newSignature = new StringBuilder(normalizedSignature.substring(0, openParenIndex + 1));
+                for (int i = 0; i < parameters.length; i++) {
+                    newSignature.append(parameters[i]);
+                    if (i < parameters.length - 1) {
+                        newSignature.append(", ");
+                    }
+                }
+                newSignature.append(normalizedSignature.substring(closeParenIndex));
+                return newSignature.toString();
+            }
+        }
+
+        return normalizedSignature.toString();
+    }
+
+    /**
+     * Normalizes class names by handling both standalone inner classes and those with outer class prefixes
+     * This helps match types like "SparkCluster" with "AppConfig$SparkCluster" and "AppConfig.SparkCluster"
+     */
+    private static String normalizeClassNames(String typeName) {
+        // Treat generic type parameters (T, E, K, V, etc.) as Object for matching
+        String trimmed = typeName.trim();
+        // Common generic type parameter names
+        Set<String> generics = new HashSet<>(Arrays.asList(
+                "T", "E", "K", "V", "S", "U", "R", "N", "M", "O", "P", "Q", "X", "Y", "Z", "I"
+        ));
+        if (generics.contains(trimmed)) {
+            return "Object";
+        }
+        // Also handle cases like "? extends T" or "? super T"
+        if (trimmed.matches("\\?\\s*(extends|super)\\s*[A-Z]")) {
+            return "Object";
+        }
+        // First handle simple replacements of $ with . or vice versa
+        String normalized = replaceDollarWithDotInClassNames(typeName);
+
+        // Now handle the case where one version has the outer class prefix and the other doesn't
+        int lastDotIndex = normalized.lastIndexOf('.');
+        if (lastDotIndex != -1) {
+            // Check if this might be an inner class reference
+            String possibleInnerClass = normalized.substring(lastDotIndex + 1);
+
+            // If this is a standalone inner class name (no $ or . in it)
+            if (!possibleInnerClass.contains(".") && !possibleInnerClass.contains("$")) {
+                // Return just the class name without package or outer class
+                return possibleInnerClass;
+            }
+        }
+
+        // Check if this is a fully qualified inner class name (with $ or .)
+        if (normalized.contains("$") ||
+                (normalized.contains(".") && !normalized.matches("^java\\.(lang|util|io|math|time)\\.[A-Za-z0-9]+$"))) {
+            // Extract just the inner class name
+            String[] parts = normalized.replace('$', '.').split("\\.");
+            if (parts.length > 1) {
+                // Return the last segment, which should be the inner class name
+                return parts[parts.length - 1];
+            }
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Helper method to replace dots with dollar signs in class names, and vice versa
+     */
+    private static String replaceDollarWithDotInClassNames(String typeName) {
+        // Replace $ with . in class names (for inner classes)
+        StringBuilder result = new StringBuilder();
+        String[] parts = typeName.split("\\.");
+
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            // Check if this part contains a dollar sign
+            if (part.contains("$")) {
+                part = part.replace('$', '.');
+            }
+            result.append(part);
+            if (i < parts.length - 1) {
+                result.append(".");
+            }
+        }
+
         return result.toString();
     }
 
