@@ -71,8 +71,12 @@ public class MethodRunner extends ClassRunner {
         PromptConstructorImpl pc = phase.generatePrompt(classInfo, methodInfo,num);
         PromptInfo promptInfo = pc.getPromptInfo();
 
+        String sourceCode = promptInfo.methodInfo.sourceCode;
+        // Count the number of branches in the method's source code
+        int branchCount = countBranchesInSource(sourceCode);
         config.getLogger().debug("SOFIA ACTIVATIONS NUMBER: " + promptInfo.sofiaActivations);
-        if (promptInfo.sofiaActivations == 0) {
+        config.getLogger().debug("BRANCH NUMBER: " + branchCount);
+        if (promptInfo.sofiaActivations == 0 || branchCount < 2) {
             return false;
         }
 
@@ -126,6 +130,20 @@ public class MethodRunner extends ClassRunner {
             generateJsonReport(pc.getPromptInfo(), duration, false, "0.0");
         }
         return false;
+    }
+
+    public static int countBranchesInSource(String methodSource) {
+        com.github.javaparser.ast.body.MethodDeclaration method;
+        try {
+            method = com.github.javaparser.StaticJavaParser.parseMethodDeclaration(methodSource);
+        } catch (Exception e) {
+            return 0;
+        }
+        return method.findAll(com.github.javaparser.ast.stmt.IfStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.SwitchEntry.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.ForStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.WhileStmt.class).size()
+                + method.findAll(com.github.javaparser.ast.stmt.DoStmt.class).size();
     }
 
     public String getCoverage(ClassInfo classInfo, MethodInfo methodInfo, PromptInfo promptInfo) {
