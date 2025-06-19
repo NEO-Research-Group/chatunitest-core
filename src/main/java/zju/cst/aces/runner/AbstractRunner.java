@@ -456,7 +456,7 @@ public abstract class AbstractRunner {
         }
     }
 
-    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success, String branchCoveragePercentage) {
+    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -472,7 +472,6 @@ public abstract class AbstractRunner {
         map.put("round", String.valueOf(promptInfo.round));
         map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
         map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
-        map.put("branchCoveragePercentage", branchCoveragePercentage);
         if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD"))
             map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
 
