@@ -83,15 +83,20 @@ public class TestGeneration {
 
     public String generateTest(List<ChatMessage> prompt, RoundRecord record) {
 
+        config.getLogger().info("Debugging 1");
+
         if (MethodRunner.isExceedMaxTokens(config.getMaxPromptTokens(), prompt)) {
             config.getLogger().error("Exceed max prompt tokens: " + methodInfo.methodName + " Skipped.");
             record.setPromptToken(-1);
             record.setHasCode(false);
             return "";
         }
+
+        config.getLogger().info("Debugging 2");
         config.getLogger().debug("[Prompt]:\n" + prompt);
 
         ChatResponse response = ChatGenerator.chat(config, prompt);
+        config.getLogger().info("Debugging 3");
         String content = ChatGenerator.getContentByResponse(response);
         config.getLogger().debug("[Response]:\n" + content);
         String code = ChatGenerator.extractCodeByContent(content);
