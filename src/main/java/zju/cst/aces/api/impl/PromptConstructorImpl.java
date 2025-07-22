@@ -53,7 +53,7 @@ public class PromptConstructorImpl implements PromptConstructor {
                 config.getPhaseType().equals("FCE")) {
             SofiaRunner.setStaticParams(config);
             this.promptInfo = SofiaRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);
-        } else if (config.getPhaseType().equals("ECR")) {
+        } else if (config.getPhaseType().equals("ECR") || config.getPhaseType().equals("FCE_WITH_ECR")) {
             ECRRunner.setStaticParams(config);
             this.promptInfo = ECRRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);
         } else if (config.getPhaseType().equals("SOFIA_HITS")) {

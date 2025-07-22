@@ -48,6 +48,7 @@ public class RunnerImpl implements Runner {
                 new SofiaRunner(config, fullClassName, methodInfo).start();
                 break;
             case "ECR":
+            case "FCE_WITH_ECR":
                 new ECRRunner(config, fullClassName, methodInfo).start();
                 break;
             case "SOFIA_HITS":
