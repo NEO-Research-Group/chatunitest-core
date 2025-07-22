@@ -112,6 +112,7 @@ public class ClassRunner extends AbstractRunner {
                 break;
             case "SOFIA":
             case "SOFIA_OLD":
+            case "FCE":
                 new SofiaRunner(config, fullClassName, methodInfo).start();
                 break;
             case "SOFIA_HITS":

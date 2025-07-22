@@ -48,7 +48,7 @@ public class PromptConstructorImpl implements PromptConstructor {
     }
 
     public void setPromptInfoWithDep(ClassInfo classInfo, MethodInfo methodInfo) throws IOException {
-        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD")) {
+        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD") || config.getPhaseType().equals("FCE")) {
             SofiaRunner.setStaticParams(config);
             this.promptInfo = SofiaRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);
         } else if (config.getPhaseType().equals("SOFIA_HITS")) {

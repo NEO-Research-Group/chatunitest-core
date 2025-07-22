@@ -22,7 +22,8 @@ public class PhaseImpl implements Phase {
         SOFIA,
         SOFIA_OLD,
         CHATUNITEST_NEW,
-        SOFIA_HITS
+        SOFIA_HITS,
+        FCE
     }
 
     protected final Config config;
@@ -97,6 +98,7 @@ public class PhaseImpl implements Phase {
                     return new MUTAP(config);
                 case SOFIA:
                 case SOFIA_OLD:
+                case FCE:
                     return new SOFIA(config);
                 case SOFIA_HITS:
                     return new SOFIA_HITS(config);

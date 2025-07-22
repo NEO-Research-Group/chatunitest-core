@@ -209,7 +209,7 @@ public class PromptTemplate {
         this.dataModel.put("ext_c_deps", ext_cdep_temp);
         this.dataModel.put("ext_m_deps", ext_mdep_temp);
         this.dataModel.put("full_fm", promptInfo.getContext());
-
+        this.dataModel.put("focal_class_extension", promptInfo.getClassInfo().getCompilationUnitCode());
 
     }
 

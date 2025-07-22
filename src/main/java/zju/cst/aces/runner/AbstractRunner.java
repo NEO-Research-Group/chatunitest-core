@@ -472,7 +472,7 @@ public abstract class AbstractRunner {
         map.put("round", String.valueOf(promptInfo.round));
         map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
         map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
-        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD"))
+        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD") || config.getPhaseType().equals("FCE"))
             map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
 
         try {
