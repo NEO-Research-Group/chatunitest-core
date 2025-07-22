@@ -23,7 +23,8 @@ public class PhaseImpl implements Phase {
         SOFIA_OLD,
         CHATUNITEST_NEW,
         SOFIA_HITS,
-        FCE
+        FCE,
+        ECR
     }
 
     protected final Config config;
@@ -99,6 +100,7 @@ public class PhaseImpl implements Phase {
                 case SOFIA:
                 case SOFIA_OLD:
                 case FCE:
+                case ECR:
                     return new SOFIA(config);
                 case SOFIA_HITS:
                     return new SOFIA_HITS(config);

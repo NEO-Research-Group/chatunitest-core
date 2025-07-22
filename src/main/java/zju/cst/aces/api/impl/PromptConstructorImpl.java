@@ -9,6 +9,7 @@ import zju.cst.aces.dto.MethodInfo;
 import zju.cst.aces.dto.PromptInfo;
 import zju.cst.aces.prompt.PromptGenerator;
 import zju.cst.aces.runner.AbstractRunner;
+import zju.cst.aces.runner.solution_runner.ECRRunner;
 import zju.cst.aces.runner.solution_runner.ExpRunner;
 import zju.cst.aces.runner.solution_runner.SofiaHitsRunner;
 import zju.cst.aces.runner.solution_runner.SofiaRunner;
@@ -48,9 +49,13 @@ public class PromptConstructorImpl implements PromptConstructor {
     }
 
     public void setPromptInfoWithDep(ClassInfo classInfo, MethodInfo methodInfo) throws IOException {
-        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD") || config.getPhaseType().equals("FCE")) {
+        if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD") ||
+                config.getPhaseType().equals("FCE")) {
             SofiaRunner.setStaticParams(config);
             this.promptInfo = SofiaRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);
+        } else if (config.getPhaseType().equals("ECR")) {
+            ECRRunner.setStaticParams(config);
+            this.promptInfo = ECRRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);
         } else if (config.getPhaseType().equals("SOFIA_HITS")) {
             SofiaHitsRunner.setStaticParams(config);
             this.promptInfo = SofiaHitsRunner.generatePromptInfoWithDep(config, classInfo, methodInfo);

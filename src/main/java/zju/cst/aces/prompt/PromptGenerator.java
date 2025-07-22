@@ -120,6 +120,7 @@ public class PromptGenerator {
                 return PromptFile.chatunitest_repair;
             case "SOFIA":
             case "FCE":
+            case "ECR":
                 return PromptFile.sofia_repair;
             case "SOFIA_OLD":
                 return PromptFile.sofia_old_repair;
@@ -156,6 +157,8 @@ public class PromptGenerator {
                 return PromptFile.sofia_init;
             case "FCE":
                 return PromptFile.fce_init;
+            case "ECR":
+                return PromptFile.ecr_init;
             case "CHATUNITEST_NEW":
                 return PromptFile.chatunitest_new_init;
             case "SOFIA_HITS":

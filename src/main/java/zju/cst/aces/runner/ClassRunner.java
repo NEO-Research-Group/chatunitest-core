@@ -115,6 +115,9 @@ public class ClassRunner extends AbstractRunner {
             case "FCE":
                 new SofiaRunner(config, fullClassName, methodInfo).start();
                 break;
+            case "ECR":
+                new ECRRunner(config, fullClassName, methodInfo).start();
+                break;
             case "SOFIA_HITS":
                 new SofiaHitsRunner(config, fullClassName, methodInfo).start();
                 break;
