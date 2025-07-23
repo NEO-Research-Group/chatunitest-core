@@ -221,11 +221,12 @@ public class ECRRunner extends MethodRunner {
     public static String cleanSourceCode(String source, Set<String> depMethods) {
         ParserConfiguration config = new ParserConfiguration()
                 .setAttributeComments(false) // ignora comentarios mal ubicados
+                .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_8)
                 .setDoNotAssignCommentsPrecedingEmptyLines(true)
                 .setLanguageLevel(ParserConfiguration.LanguageLevel.BLEEDING_EDGE)
                 .setStoreTokens(false); // no guarda tokens, consume menos memoria
         JavaParser parser = new JavaParser(config);
-        String sanitizedSource = sanitize(source);
+        String sanitizedSource = sanitizeForJavaParser(source);
         String sourceWithoutJavadoc = removeLeadingJavadoc(sanitizedSource);
         CompilationUnit cu = parser.parse(sourceWithoutJavadoc).getResult().orElseThrow(() -> new RuntimeException("Parsing failed"));
 
@@ -289,58 +290,28 @@ public class ECRRunner extends MethodRunner {
         return cu.toString();
     }
 
-    public static String sanitize(String source) {
-        StringBuilder sanitized = new StringBuilder();
-        String[] lines = source.split("\\r?\\n");
+    /**
+     * Preprocesses source code to help JavaParser handle synthetic class references and misplaced comments.
+     * - Replaces synthetic class references (e.g., Foo$1) with valid identifiers or null.
+     * - Removes or replaces comments between expressions that break parsing.
+     */
+    public static String sanitizeForJavaParser(String source) {
+        // Replace synthetic class references (e.g., Foo$1) with a valid identifier or null
+        // Only replace when used as a type, not as an identifier (avoid replacing method names)
+        // Replace occurrences like "Foo$1 " or "Foo$1," or "Foo$1)" but NOT "Foo$1(" (method name)
+        source = source.replaceAll("(?<=[\\s\\(,])([a-zA-Z_][a-zA-Z0-9_]*\\$\\d+)(?=[\\s,;\\)])", "null");
 
-        for (String line : lines) {
-            String trimmed = line.trim();
+        // Remove comments between expressions (inline block comments that break parsing)
+        // e.g., "foo(/* comment */bar)" => "foo(bar)"
+        source = source.replaceAll("/\\*.*?\\*/", " ");
 
-            // Remove known decompiler artifact comments
-            if (trimmed.startsWith("// Could not load outer class") ||
-                    trimmed.contains("/* Unavailable Anonymous Inner Class!! */") ||
-                    trimmed.contains("/* synthetic */")) {
-                continue;
-            }
+        // Remove line comments that are not at the start of a line
+        source = source.replaceAll("([^\\n])//.*", "$1");
 
-            // Replace invalid anonymous class initializations with null
-            line = line.replaceAll("new\\s*/\\*.*?Anonymous.*?\\*/", "null");
+        // Optionally, remove any remaining problematic comments
+        // source = source.replaceAll("//.*", "");
 
-            // Replace invalid assignments like `= new ;` with null
-            line = line.replaceAll("=\\s*new\\s*;", "= null;");
-
-            // Replace any identifier with invalid Java syntax (e.g., containing $$$)
-            line = line.replaceAll("\\b([a-zA-Z0-9_]*\\$\\$\\$[a-zA-Z0-9_]*)\\b", "InvalidIdentifier");
-
-            // Remove references to synthetic classes like Foo$1, Foo$2
-            line = line.replaceAll("\\b([a-zA-Z_][a-zA-Z0-9_]*\\$\\d+)\\b", "/*removedSyntheticClass*/null");
-
-            // Remove references to methods like <init> or <clinit>
-            line = line.replaceAll("<(init|clinit)>", "/*removedMethod*/");
-
-            // Sanitize annotations or misplaced generics
-            if (trimmed.matches("@[A-Za-z0-9_]+\\s+<.*?>")) {
-                continue; // skip broken annotation/generic combinations
-            }
-
-            // Remove lines with unmatched angle brackets (often corrupted generic types)
-            if (countChar(trimmed, '<') != countChar(trimmed, '>')) {
-                continue;
-            }
-
-            // Remove clearly malformed lines
-            if (trimmed.matches(".*class .*\\{[^}]*$") && trimmed.contains(";")) {
-                continue;
-            }
-
-            sanitized.append(line).append("\n");
-        }
-
-        return sanitized.toString();
-    }
-
-    private static int countChar(String line, char c) {
-        return (int) line.chars().filter(ch -> ch == c).count();
+        return source;
     }
 
     public static String removeLeadingJavadoc(String source) {
