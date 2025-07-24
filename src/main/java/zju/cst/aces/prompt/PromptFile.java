@@ -33,7 +33,8 @@ public enum PromptFile {
     sofia_hits_test_repair("PROMPT_TEMPLATE_SOFIA_HITS_REPAIR", "PROMPT_TEMPLATE_HITS_SYS_REPAIR"),
     fce_init("PROMPT_TEMPLATE_FCE_INIT", "PROMPT_TEMPLATE_FCE_INIT_SYSTEM"),
     ecr_init("PROMPT_TEMPLATE_ECR_INIT", "PROMPT_TEMPLATE_ECR_INIT_SYSTEM"),
-    fce_with_ecr_init("PROMPT_TEMPLATE_FCE+ECR_INIT", "PROMPT_TEMPLATE_FCE+ECR_INIT_SYSTEM");
+    fce_with_ecr_init("PROMPT_TEMPLATE_FCE+ECR_INIT", "PROMPT_TEMPLATE_FCE+ECR_INIT_SYSTEM"),
+    error_parsing_repair("PROMPT_TEMPLATE_ERROR_PARSING_REPAIR", "PROMPT_TEMPLATE_ERROR_PARSING_REPAIR_SYSTEM");
     // 成员变量
     private final String generate;
     private final String generateSystem;

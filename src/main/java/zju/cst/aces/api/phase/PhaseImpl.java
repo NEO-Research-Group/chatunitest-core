@@ -25,7 +25,8 @@ public class PhaseImpl implements Phase {
         SOFIA_HITS,
         FCE,
         ECR,
-        FCE_WITH_ECR
+        FCE_WITH_ECR,
+        ERROR_PARSING
     }
 
     protected final Config config;
@@ -103,6 +104,7 @@ public class PhaseImpl implements Phase {
                 case FCE:
                 case ECR:
                 case FCE_WITH_ECR:
+                case ERROR_PARSING:
                     return new SOFIA(config);
                 case SOFIA_HITS:
                     return new SOFIA_HITS(config);

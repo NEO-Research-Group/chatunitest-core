@@ -474,7 +474,7 @@ public abstract class AbstractRunner {
         map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
         if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD")
                 || config.getPhaseType().equals("FCE") || config.getPhaseType().equals("ECR")
-                || config.getPhaseType().equals("FCE_WITH_ECR"))
+                || config.getPhaseType().equals("FCE_WITH_ECR") || config.getPhaseType().equals("ERROR_PARSING"))
             map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
 
         try {

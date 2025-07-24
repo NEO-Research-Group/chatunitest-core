@@ -45,6 +45,7 @@ public class RunnerImpl implements Runner {
             case "SOFIA":
             case "SOFIA_OLD":
             case "FCE":
+            case "ERROR_PARSING":
                 new SofiaRunner(config, fullClassName, methodInfo).start();
                 break;
             case "ECR":

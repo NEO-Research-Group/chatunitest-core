@@ -7,6 +7,7 @@ import zju.cst.aces.api.phase.solution.SYMPROMPT;
 import zju.cst.aces.api.phase.solution.TELPA;
 import zju.cst.aces.dto.*;
 import zju.cst.aces.prompt.template.PromptTemplate;
+import zju.cst.aces.runner.solution_runner.SofiaRunner;
 import zju.cst.aces.util.TokenCounter;
 import zju.cst.aces.util.symprompt.PathConstraintExtractor;
 
@@ -123,6 +124,8 @@ public class PromptGenerator {
             case "ECR":
             case "FCE_WITH_ECR":
                 return PromptFile.sofia_repair;
+            case "ERROR_PARSING":
+                return PromptFile.error_parsing_repair;
             case "SOFIA_OLD":
                 return PromptFile.sofia_old_repair;
             case "CHATUNITEST_NEW":
@@ -155,6 +158,7 @@ public class PromptGenerator {
                 setSymPromptInitData();
                 return PromptFile.symprompt_init;
             case "SOFIA":
+            case "ERROR_PARSING":
                 return PromptFile.sofia_init;
             case "FCE":
                 return PromptFile.fce_init;
@@ -238,10 +242,27 @@ public class PromptGenerator {
                 processedErrorMsg += error + "\n";
             }
         }
+
+
+
         config.getLogger().debug("Allowed tokens: " + allowedTokens);
         config.getLogger().debug("Processed error message: \n" + processedErrorMsg);
 
         promptTemplate.dataModel.put("unit_test", promptInfo.getUnitTest());
         promptTemplate.dataModel.put("error_message", processedErrorMsg);
+
+        if (config.phaseType.equals("ERROR_PARSING")) {
+
+            Set<String> errorsLocations = CompilationErrorParser.extractClassNamesFromErrors(processedErrorMsg);
+            Map<String, String> errorLocationsMap = new HashMap<>();
+            for (String location : errorsLocations) {
+                String sourceCode = SofiaRunner.getSourceCode(location, null);
+                errorLocationsMap.put(location, sourceCode);
+            }
+
+            promptTemplate.dataModel.put("error_context", errorLocationsMap);
+
+        }
+
     }
 }
