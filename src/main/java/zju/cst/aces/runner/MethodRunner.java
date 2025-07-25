@@ -162,6 +162,12 @@ public class MethodRunner extends ClassRunner {
                 if (node instanceof com.github.javaparser.ast.expr.ConditionalExpr) {
                     count.getAndIncrement();
                 }
+                if (node instanceof com.github.javaparser.ast.expr.UnaryExpr) {
+                    com.github.javaparser.ast.expr.UnaryExpr.Operator op = ((com.github.javaparser.ast.expr.UnaryExpr) node).getOperator();
+                    if (op == com.github.javaparser.ast.expr.UnaryExpr.Operator.LOGICAL_COMPLEMENT) {
+                        count.getAndIncrement();
+                    }
+                }
             });
         }
         return count.get();
