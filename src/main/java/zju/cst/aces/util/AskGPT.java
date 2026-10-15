@@ -12,6 +12,7 @@ import zju.cst.aces.dto.ChatMessage;
 import zju.cst.aces.dto.ChatResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,10 +44,19 @@ public class AskGPT {
                 payload.put("messages", chatMessages);
                 payload.put("model", modelConfig.getModelName());
                 payload.put("temperature", config.getTemperature());
-                payload.put("random_seed", 42);
+                if (modelConfig.isSupportsRandomSeed()) {
+                    payload.put("random_seed", 42);
+                }
                 payload.put("frequency_penalty", config.getFrequencyPenalty());
                 payload.put("presence_penalty", config.getPresencePenalty());
-                payload.put("max_tokens", config.getMaxResponseTokens());
+                if (modelConfig.isUseMaxCompletionTokens()) {
+                    payload.put("max_completion_tokens", config.getMaxResponseTokens());
+                } else {
+                    payload.put("max_tokens", config.getMaxResponseTokens());
+                }
+                if (modelConfig.isDisableThinking()) {
+                    payload.put("thinking", Collections.singletonMap("type", "disabled"));
+                }
                 String jsonPayload = GSON.toJson(payload);
 
                 RequestBody body = RequestBody.create(MEDIA_TYPE, jsonPayload);

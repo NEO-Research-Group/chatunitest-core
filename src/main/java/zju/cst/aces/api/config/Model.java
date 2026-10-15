@@ -70,12 +70,31 @@ public enum Model {
             .withPresencePenalty(0)
             .build()),
     CODESTRAL_2501("codestral-2501", new ModelConfig.Builder()
-            .withModelName("codestral-2501")
+            .withModelName("codestral-latest")
             .withUrl(null)
             .withContextLength(256000)
             .withTemperature(0.5)
             .withFrequencyPenalty(0)
             .withPresencePenalty(0)
+            .build()),
+    GPT_5_4_MINI("gpt-5.4-mini", new ModelConfig.Builder()
+            .withModelName("gpt-5.4-mini")
+            .withUrl("https://api.openai.com/v1/chat/completions")
+            .withContextLength(256000)
+            .withTemperature(0.5)
+            .withFrequencyPenalty(0)
+            .withPresencePenalty(0)
+            .withSupportsRandomSeed(false)
+            .withUseMaxCompletionTokens(true)
+            .build()),
+    DEEPSEEK_V4_FLASH("deepseek-v4-flash", new ModelConfig.Builder()
+            .withModelName("deepseek-v4-flash")
+            .withUrl("https://api.deepseek.com/v1/chat/completions")
+            .withContextLength(256000)
+            .withTemperature(0.5)
+            .withFrequencyPenalty(0)
+            .withPresencePenalty(0)
+            .withDisableThinking(true)
             .build());
 
     private final String modelName;
