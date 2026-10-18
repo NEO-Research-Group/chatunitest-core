@@ -10,6 +10,7 @@ import zju.cst.aces.mutation.MutantSelector;
 import zju.cst.aces.mutation.MutationAnalyzer;
 import zju.cst.aces.mutation.MutationRequest;
 import zju.cst.aces.mutation.MutationResult;
+import zju.cst.aces.util.TestProcessor;
 
 import java.io.File;
 import java.io.IOException;
@@ -93,7 +94,7 @@ public class MethodRunner extends ClassRunner {
 
         // Phase 2: quality improvement, only from a green suite. PIT on S0 once; with improvePromptType=both,
         // the mutants and generic arms start from the same S0 (enfoque.md §5), one JSON entry per arm.
-        List<Map<String, String>> arms = new ArrayList<>();
+        List<Map<String, Object>> arms = new ArrayList<>();
         if (success && config.isEnableQualityImprove()) {
             S0Baseline s0 = new S0Baseline(pc);
             for (String arm : improveArms()) {
@@ -107,7 +108,7 @@ public class MethodRunner extends ClassRunner {
             if (arms.isEmpty()) {
                 generateJsonReport(pc.getPromptInfo(), duration, success, null);
             }
-            for (Map<String, String> arm : arms) {
+            for (Map<String, Object> arm : arms) {
                 generateJsonReport(pc.getPromptInfo(), duration, success, arm);
             }
         }
@@ -201,7 +202,8 @@ public class MethodRunner extends ClassRunner {
         final String arm;
         final String tag;
         final int num;
-        final Map<String, String> out = new LinkedHashMap<>();
+        final Map<String, Object> out = new LinkedHashMap<>();
+        final List<Map<String, String>> cycles = new ArrayList<>();
         final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
         final Map<String, String> suite = new LinkedHashMap<>();   // A_i: test class -> code
         long pitMillis;
@@ -215,33 +217,60 @@ public class MethodRunner extends ClassRunner {
             this.num = num;
         }
 
-        Map<String, String> run() {
+        Map<String, Object> run() {
+            long t0 = System.nanoTime();
             out.put("qualityEnabled", "true");
             out.put("improvePromptType", arm);
             out.put("s0Shared", String.valueOf(Config.IMPROVE_BOTH.equals(config.getImprovePromptType())));
             out.put("improveFocalContext", config.getImproveFocalContext());
             out.put("mutators", config.getMutators());
-            out.put("maxRepairPerCycle", String.valueOf(config.getMaxRepairPerCycle()));
+            out.put("maxRounds", String.valueOf(config.getMaxRounds()));
             out.put("maxQualityCycles", String.valueOf(config.getMaxQualityCycles()));
+            out.put("maxRepairPerCycle", String.valueOf(config.getMaxRepairPerCycle()));
             out.put("maxMutantsPerPrompt", String.valueOf(config.getMaxMutantsPerPrompt()));
             out.put("maxMutantAttempts", String.valueOf(config.getMaxMutantAttempts()));
             out.put("stagnationCycles", String.valueOf(config.getStagnationCycles()));
+            putS0();
             if (s0.error != null) {
                 stop("ERROR", 0);
                 out.put("qualityError", s0.error);
-                return out;
+            } else {
+                try {
+                    cycles();
+                } catch (Exception e) {
+                    config.getLogger().warn("Quality cycles of < " + methodInfo.methodName + " > (" + arm + ") failed: " + e);
+                    stop("ERROR", current);
+                    out.put("qualityError", e.toString());
+                }
             }
-            putResult("s0", s0.result);
-            out.put("s0GreenPrunedTests", String.valueOf(s0.pitPruned));
-            try {
-                cycles();
-            } catch (Exception e) {
-                config.getLogger().warn("Quality cycles of < " + methodInfo.methodName + " > (" + arm + ") failed: " + e);
-                stop("ERROR", current);
-                out.put("qualityError", e.toString());
-            }
-            out.put("pitMillis", String.valueOf(pitMillis + s0.result.getTotalMillis()));
+            long valid = cycles.stream().filter(c -> "true".equals(c.get("valid"))).count();
+            out.put("validCycles", String.valueOf(valid));
+            out.put("discardedCycles", String.valueOf(cycles.size() - valid));
+            out.put("pitTimeMillis", String.valueOf(pitMillis + (s0.result == null ? 0 : s0.result.getTotalMillis())));
+            out.put("reasoningTokens", String.valueOf(reasoningTokens(s0.info.getRecords())
+                    + cycles.stream().mapToInt(c -> Integer.parseInt(c.get("reasoningTokens"))).sum()));
+            out.put("qualityTime", String.valueOf((float) (System.nanoTime() - t0) / 1_000_000_000));
+            out.put("cycles", cycles);
             return out;
+        }
+
+        /** S0 as it enters the cycles (after the green-run pruning of PIT); the same in both arms. */
+        void putS0() {
+            out.put("roundS0", String.valueOf(s0.info.getRound()));
+            out.put("s0_reasoningTokens", String.valueOf(reasoningTokens(s0.info.getRecords())));
+            if (s0.code != null) {
+                TestProcessor tp = new TestProcessor(s0.name);
+                out.put("s0_tests", String.valueOf(tp.countTestCases(s0.code)));
+                out.put("s0_asserts", String.valueOf(tp.countAssertions(s0.code)));
+            }
+            if (s0.result != null) {
+                out.put("s0_pitStatus", String.valueOf(s0.result.getStatus()));
+                out.put("s0_pitPruned", String.valueOf(s0.pitPruned));
+                out.put("s0_pitTime", String.valueOf(s0.result.getTotalMillis()));
+                Map<String, String> m = new LinkedHashMap<>();
+                putMutation(m, s0.result);
+                m.forEach((k, v) -> out.put("s0_" + k, v));
+            }
         }
 
         /**
@@ -268,10 +297,15 @@ public class MethodRunner extends ClassRunner {
                     stop("ALL_EXHAUSTED", i - 1);
                     return;
                 }
-                MutationResult next = cycle(i, selector.select(prev), prev);
+                long t0 = System.nanoTime();
+                Map<String, String> c = new LinkedHashMap<>();
+                cycles.add(c);
+                MutationResult next = cycle(i, selector.select(prev), prev, c);
                 Set<String> killed = detectedIds(next);
                 killed.removeAll(detectedIds(prev));
-                out.put("c" + i + "_newKilled", String.valueOf(killed.size()));
+                putSuite(c, next);
+                c.put("newKilled", String.valueOf(killed.size()));
+                c.put("time", String.valueOf((float) (System.nanoTime() - t0) / 1_000_000_000));
                 withoutKills = killed.isEmpty() ? withoutKills + 1 : 0;
                 prev = next;
                 if (withoutKills >= config.getStagnationCycles()) {
@@ -289,11 +323,12 @@ public class MethodRunner extends ClassRunner {
                     + " after " + cycle + " cycles");
         }
 
-        /** Cycle i from A_{i-1} (PIT result prev); returns the PIT result of A_i. */
-        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev) throws IOException {
-            String p = "c" + i + "_";
+        /** Cycle i from A_{i-1} (PIT result prev), recorded in c; returns the PIT result of A_i. */
+        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev, Map<String, String> c) throws IOException {
             String qName = s0.name.substring(0, s0.name.length() - "_Test".length()) + "_" + tag + i + "_Test";
             Path qPath = config.getTestOutput().resolve(qName.replace(".", File.separator) + ".java");
+            c.put("cycle", String.valueOf(i));
+            c.put("testClass", qName);
             PromptInfo q = PromptInfo.forImprovement(s0.info, qName, qPath);
             q.setImproveMode(arm);
             q.setSuiteTests(String.join("\n\n", suite.values()));
@@ -302,9 +337,9 @@ public class MethodRunner extends ClassRunner {
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
                 q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0.info)));
                 q.setImproveScore(MutantSelector.score(prev));
-                out.put(p + "shownMutants", chosenIds);
+                c.put("shownMutants", chosenIds);
             } else {
-                out.put(p + "hiddenMutants", chosenIds);   // chosen and counted as attempts, not in the prompt
+                c.put("hiddenMutants", chosenIds);   // chosen and counted as attempts, not in the prompt
             }
             if (Config.IMPROVE_CONTEXT_FCE.equals(config.getImproveFocalContext())) {
                 q.setImproveFce(classInfo.getCompilationUnitCode());
@@ -315,11 +350,11 @@ public class MethodRunner extends ClassRunner {
             qpc.setPromptInfo(q);
             qpc.setFullTestName(qName);
             Outcome qo = generateAndRepair(phase, qpc, true, config.getMaxRepairPerCycle());
-            putImprovementStats(p, q, qo);
+            putImprovementStats(c, q, qo);
             exportRecord(s0.info, q.getRecords(), classInfo, num, "records_" + tag + i + ".json");
             if (qo == Outcome.FAILED) {
                 Files.deleteIfExists(qPath);
-                out.put(p + "outcome", "DISCARDED_RED");
+                discard(c, "DISCARDED_RED");
                 return prev;
             }
 
@@ -328,37 +363,55 @@ public class MethodRunner extends ClassRunner {
             tests.put(qName, new String(Files.readAllBytes(qPath), StandardCharsets.UTF_8));
             MutationResult r = pit(s0.info, tests, Collections.singleton(qName));
             pitMillis += r.getTotalMillis();
-            putResult(p + "a", r);
-            out.put(p + "greenPrunedTests", String.valueOf(prunedCount(r, qName)));
+            c.put("pitStatus", String.valueOf(r.getStatus()));
+            c.put("pitTime", String.valueOf(r.getTotalMillis()));
+            c.put("pitPruned", String.valueOf(prunedCount(r, qName)));
             if (r.getStatus() != MutationResult.Status.OK || r.getFinalTests() == null
                     || !r.getFinalTests().containsKey(qName)) {
                 Files.deleteIfExists(qPath);
-                out.put(p + "outcome", "DISCARDED_PIT_" + r.getStatus());
+                discard(c, "DISCARDED_PIT_" + r.getStatus());
                 return prev;
             }
+            String qCode = r.getFinalTests().get(qName);
             if (prunedCount(r, qName) > 0) {
-                exportTest(r.getFinalTests().get(qName), qPath);
+                exportTest(qCode, qPath);
             }
-            suite.put(qName, r.getFinalTests().get(qName));
-            Set<String> chosenSet = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
-            long killedChosen = r.getMutants().stream().filter(m -> m.detected && chosenSet.contains(m.id)).count();
-            out.put(p + "killedChosen", String.valueOf(killedChosen));
-            out.put(p + "outcome", qo == Outcome.PARTIAL ? "VALID_PARTIAL"
+            suite.put(qName, qCode);
+            TestProcessor tp = new TestProcessor(qName);
+            c.put("valid", "true");
+            c.put("outcome", qo == Outcome.PARTIAL ? "VALID_PARTIAL"
                     : "PASSED_AFTER_PRUNE".equals(q.getValidationOutcome()) ? "VALID_PRUNED" : "VALID_PASSED");
+            c.put("qTests", String.valueOf(tp.countTestCases(qCode)));
+            c.put("qAsserts", String.valueOf(tp.countAssertions(qCode)));
+            Set<String> chosenSet = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
+            c.put("killedChosen", String.valueOf(r.getMutants().stream()
+                    .filter(m -> m.detected && chosenSet.contains(m.id)).count()));
             return r;
         }
 
-        void putResult(String prefix, MutationResult r) {
-            out.put(prefix + "PitStatus", String.valueOf(r.getStatus()));
-            out.put(prefix + "Mutants", String.valueOf(r.getTotal()));
-            out.put(prefix + "Detected", String.valueOf(r.getDetected()));
-            out.put(prefix + "Survived", String.valueOf(r.getSurvived()));
-            out.put(prefix + "NoCoverage", String.valueOf(r.getNoCoverage()));
-            out.put(prefix + "MS", String.valueOf(r.getMs()));
-            out.put(prefix + "TS", String.valueOf(r.getTs()));
+        void discard(Map<String, String> c, String outcome) {
+            c.put("valid", "false");
+            c.put("outcome", outcome);
+            c.put("qTests", "0");
+            c.put("qAsserts", "0");
+            c.put("killedChosen", "0");
         }
 
-        void putImprovementStats(String p, PromptInfo q, Outcome qo) {
+        /** The accumulated suite A_i and its PIT result (A_{i-1} if the cycle was discarded). */
+        void putSuite(Map<String, String> c, MutationResult r) {
+            int tests = 0, asserts = 0;
+            for (Map.Entry<String, String> e : suite.entrySet()) {
+                TestProcessor tp = new TestProcessor(e.getKey());
+                tests += tp.countTestCases(e.getValue());
+                asserts += tp.countAssertions(e.getValue());
+            }
+            c.put("suiteClasses", String.valueOf(suite.size()));
+            c.put("tests", String.valueOf(tests));
+            c.put("asserts", String.valueOf(asserts));
+            putMutation(c, r);
+        }
+
+        void putImprovementStats(Map<String, String> c, PromptInfo q, Outcome qo) {
             int improveIn = 0, improveOut = 0, repairIn = 0, repairOut = 0;
             for (RoundRecord r : q.getRecords()) {
                 int in = r.getPromptToken() + r.getDiscardedPromptToken();
@@ -371,18 +424,35 @@ public class MethodRunner extends ClassRunner {
                     repairOut += o;
                 }
             }
-            out.put(p + "validation", qo + "/" + q.getValidationOutcome());
-            out.put(p + "rounds", String.valueOf(q.getRecords().size() - 1));
-            out.put(p + "inRoundRestarts", String.valueOf(q.getInRoundRestarts()));
-            out.put(p + "stagnantRounds", String.valueOf(q.getStagnantRounds()));
-            out.put(p + "testsExported", String.valueOf(q.getTestsExported()));
-            out.put(p + "testsPruned", String.valueOf(q.getTestsPruned()));
-            out.put(p + "truncatedResponses", String.valueOf(q.countTruncatedResponses(config.getMaxResponseTokens())));
-            out.put(p + "improveInputTokens", String.valueOf(improveIn));
-            out.put(p + "improveOutputTokens", String.valueOf(improveOut));
-            out.put(p + "repairInputTokens", String.valueOf(repairIn));
-            out.put(p + "repairOutputTokens", String.valueOf(repairOut));
+            c.put("generation", String.valueOf(qo));
+            c.put("validationOutcome", q.getValidationOutcome());
+            c.put("greenFromRound", String.valueOf(q.getGreenFromRound()));
+            c.put("repairRounds", String.valueOf(q.getRecords().size() - 1));
+            c.put("restarts", String.valueOf(q.getInRoundRestarts()));
+            c.put("stagnantRounds", String.valueOf(q.getStagnantRounds()));
+            c.put("truncatedResponses", String.valueOf(q.countTruncatedResponses(config.getMaxResponseTokens())));
+            c.put("qTestsExported", String.valueOf(q.getTestsExported()));
+            c.put("qTestsPruned", String.valueOf(q.getTestsPruned()));
+            c.put("improveInputTokens", String.valueOf(improveIn));
+            c.put("improveOutputTokens", String.valueOf(improveOut));
+            c.put("repairInputTokens", String.valueOf(repairIn));
+            c.put("repairOutputTokens", String.valueOf(repairOut));
+            c.put("reasoningTokens", String.valueOf(reasoningTokens(q.getRecords())));
         }
+    }
+
+    /** Mutation counts of the focal method; killed = detected (KILLED, TIMED_OUT, MEMORY_ERROR, RUN_ERROR...). */
+    static void putMutation(Map<String, ? super String> m, MutationResult r) {
+        m.put("mutants", String.valueOf(r.getTotal()));
+        m.put("killed", String.valueOf(r.getDetected()));
+        m.put("survived", String.valueOf(r.getSurvived()));
+        m.put("noCoverage", String.valueOf(r.getNoCoverage()));
+        m.put("ms", String.valueOf(r.getMs()));
+        m.put("ts", String.valueOf(r.getTs()));
+    }
+
+    static int reasoningTokens(List<RoundRecord> records) {
+        return records.stream().mapToInt(RoundRecord::getReasoningToken).sum();
     }
 
     /** PIT on the given test classes (FQN -> code), pruning failing tests of the prunable classes only. */

@@ -4,6 +4,7 @@ import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.expr.MethodCallExpr;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import zju.cst.aces.dto.PromptInfo;
@@ -62,6 +63,25 @@ public class TestProcessor {
             ParseResult<CompilationUnit> parseResult = parser.parse(code);
             CompilationUnit cu = parseResult.getResult().orElseThrow(()->new NoSuchElementException("CompilationUnit not present in parse result"));
             return (int) cu.findAll(MethodDeclaration.class).stream().filter(this::isTestCase).count();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /**
+     * Assertions in the @Test/@ParameterizedTest methods, as scripts/count_tests.py in CUTMUT: calls to assert*
+     * (assertEquals, assertThrows, assertThat...), verify and fail, also qualified (Assertions.assertEquals,
+     * Mockito.verify). Comments are not counted. Returns -1 if the code cannot be parsed.
+     */
+    public int countAssertions(String code) {
+        try {
+            ParseResult<CompilationUnit> parseResult = parser.parse(code);
+            CompilationUnit cu = parseResult.getResult().orElseThrow(()->new NoSuchElementException("CompilationUnit not present in parse result"));
+            return (int) cu.findAll(MethodDeclaration.class).stream().filter(this::isTestCase)
+                    .flatMap(m -> m.findAll(MethodCallExpr.class).stream())
+                    .map(MethodCallExpr::getNameAsString)
+                    .filter(n -> n.startsWith("assert") || n.equals("verify") || n.equals("fail"))
+                    .count();
         } catch (Exception e) {
             return -1;
         }

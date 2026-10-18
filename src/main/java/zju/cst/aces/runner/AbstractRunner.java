@@ -465,12 +465,12 @@ public abstract class AbstractRunner {
         generateJsonReport(promptInfo, duration, success, null);
     }
 
-    /** extra: more fields for the entry (e.g. the quality improvement cycle), added at the end. */
-    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success, Map<String, String> extra) {
+    /** extra: more fields for the entry (e.g. the quality improvement cycles, a list), added at the end. */
+    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success, Map<String, ?> extra) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
-        Map<String, String> map = new LinkedHashMap<>();
+        Map<String, Object> map = new LinkedHashMap<>();
         map.put("projectName", config.project.getArtifactId());
         map.put("phaseType", config.phaseType);
         map.put("packageName", promptInfo.classInfo.packageName);

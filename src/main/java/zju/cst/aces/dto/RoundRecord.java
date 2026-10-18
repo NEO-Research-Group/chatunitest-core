@@ -23,6 +23,8 @@ public class RoundRecord {
     public boolean inRoundRestart;
     public int discardedPromptToken;
     public int discardedResponseToken;
+    // Reasoning tokens of the response, if the provider reports them apart (0 otherwise, e.g. Codestral)
+    public int reasoningToken;
 
     public RoundRecord(int round) {
         this.round = round;
