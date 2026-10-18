@@ -51,6 +51,13 @@ public class PromptInfo {
     public int testsExported = -1;  // @Test methods in the exported suite
     public int timeouts = 0;        // executions that timed out / crashed (summary == null), over all rounds
     public int stagnantRounds = 0;  // repair rounds whose prompt was identical to the previous round's
+    // Suite with only the tests that passed in some executed round (failed @Test removed by name). It is validated
+    // and exported (PARTIAL_CORRECT_TESTS) only if all the rounds fail, so that green tests are not lost.
+    public String greenCandidate;
+    public int greenCandidateTests = -1;       // @Test methods in greenCandidate
+    public int greenCandidateSourceTests = -1; // @Test methods in the round it comes from
+    public int greenCandidateRound = -1;
+    public int greenFromRound = -1;            // round of the exported PARTIAL_CORRECT_TESTS suite
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
@@ -158,6 +165,17 @@ public class PromptInfo {
             tokenSum += r.getResponseToken();
         }
         return tokenSum;
+    }
+
+    /** Keeps the candidate with most tests (the latest on ties). */
+    public void offerGreenCandidate(String code, int tests, int sourceTests, int round) {
+        if (code == null || tests <= 0 || tests < greenCandidateTests) {
+            return;
+        }
+        greenCandidate = code;
+        greenCandidateTests = tests;
+        greenCandidateSourceTests = sourceTests;
+        greenCandidateRound = round;
     }
 
     /** Rounds whose response reached the output limit (the code is probably cut). */

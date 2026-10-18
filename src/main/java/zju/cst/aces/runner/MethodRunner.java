@@ -117,6 +117,9 @@ public class MethodRunner extends ClassRunner {
 
         }
 
+        // All the rounds failed: keep the tests that passed in some round, if they still pass on their own
+        validateGreenCandidate(config, pc.getFullTestName(), promptInfo);
+
         exportRecord(pc.getPromptInfo(), classInfo, num);
         if (config.generateJsonReport) {
             long endTime = System.nanoTime();

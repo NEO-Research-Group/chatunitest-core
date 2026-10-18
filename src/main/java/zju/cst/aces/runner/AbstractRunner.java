@@ -484,6 +484,7 @@ public abstract class AbstractRunner {
         map.put("truncatedResponses", String.valueOf(promptInfo.countTruncatedResponses(config.getMaxResponseTokens())));
         map.put("stagnationStrategy", config.getStagnationStrategy());
         map.put("stagnantRounds", String.valueOf(promptInfo.getStagnantRounds()));
+        map.put("greenFromRound", String.valueOf(promptInfo.getGreenFromRound()));
         if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD")
                 || config.getPhaseType().equals("FCE") || config.getPhaseType().equals("ECR")
                 || config.getPhaseType().equals("FCE_WITH_ECR") || config.getPhaseType().equals("ERROR_PARSING"))
@@ -708,6 +709,12 @@ public abstract class AbstractRunner {
         }
         List<String> errors = extractErrorBySummary(summary, fullTestName);
         recordExecutionStats(promptInfo, summary);
+        if (summary.getTestsFailedCount() > 0 && summary.getTestsSucceededCount() > 0) {
+            String green = testProcessor.keepPassingTests(code, summary);
+            if (green != null) {
+                promptInfo.offerGreenCandidate(green, testProcessor.countTestCases(green), testProcessor.countTestCases(code), rounds);
+            }
+        }
         boolean compileSuccess = false;
         //execution error
         if (summary.getTestsFailedCount() > 0 || summary.getTestsSucceededCount() == 0) {
@@ -735,7 +742,6 @@ public abstract class AbstractRunner {
                             return true;
                         }
                     }
-                    testProcessor.removeCorrectTest(promptInfo, summary);
                 }
                 // Set promptInfo error message
                 TestMessage testMessage = new TestMessage();
@@ -765,6 +771,54 @@ public abstract class AbstractRunner {
         }
         config.getLogger().info("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > compile and execute successfully round " + rounds);
         return true;
+    }
+
+    public static final int MAX_GREEN_PRUNES = 3;
+
+    /**
+     * Last resort when all the rounds failed: validate the suite with the tests that passed in some round
+     * (PromptInfo.greenCandidate). Tests that fail now are removed by name, up to MAX_GREEN_PRUNES times.
+     * If it ends green, it is exported with validationOutcome=PARTIAL_CORRECT_TESTS (success stays false).
+     */
+    public static boolean validateGreenCandidate(Config config, String fullTestName, PromptInfo promptInfo) {
+        String code = promptInfo.getGreenCandidate();
+        if (code == null) {
+            return false;
+        }
+        String testName = fullTestName.substring(fullTestName.lastIndexOf(".") + 1);
+        Path savePath = config.getTestOutput().resolve(fullTestName.replace(".", File.separator) + ".java");
+        Path compilationErrorPath = config.getErrorOutput().resolve(testName + "_CompilationError_green.txt");
+        TestProcessor testProcessor = new TestProcessor(fullTestName);
+        for (int i = 0; i <= MAX_GREEN_PRUNES; i++) {
+            if (!config.getValidator().semanticValidate(code, testName, compilationErrorPath, null)) {
+                break;
+            }
+            TestExecutionSummary summary = config.getValidator().execute(fullTestName);
+            if (summary == null) {
+                promptInfo.setTimeouts(promptInfo.getTimeouts() + 1);
+                break;
+            }
+            if (summary.getTestsFailedCount() == 0 && summary.getTestsSucceededCount() > 0) {
+                int exported = testProcessor.countTestCases(code);
+                recordExecutionStats(promptInfo, summary);
+                promptInfo.setValidationOutcome("PARTIAL_CORRECT_TESTS");
+                promptInfo.setTestsExported(exported);
+                promptInfo.setTestsPruned(exported < 0 || promptInfo.getGreenCandidateSourceTests() < 0
+                        ? -1 : promptInfo.getGreenCandidateSourceTests() - exported);
+                promptInfo.setGreenFromRound(promptInfo.getGreenCandidateRound());
+                exportTest(code, savePath);
+                config.getLogger().info("Green tests of round " + promptInfo.getGreenCandidateRound() + " for method < "
+                        + promptInfo.getMethodInfo().getMethodName() + " > exported (" + exported + " tests)");
+                return true;
+            }
+            code = testProcessor.keepPassingTests(code, summary);
+            if (code == null) {
+                break;
+            }
+        }
+        config.getLogger().info("Green tests of round " + promptInfo.getGreenCandidateRound() + " for method < "
+                + promptInfo.getMethodInfo().getMethodName() + " > could not be validated");
+        return false;
     }
 
     /** Counts of the execution: failures = AssertionError (opentest4j included), errors = any other exception. */

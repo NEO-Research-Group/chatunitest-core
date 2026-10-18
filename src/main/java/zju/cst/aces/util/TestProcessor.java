@@ -4,11 +4,14 @@ import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import zju.cst.aces.dto.PromptInfo;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
@@ -61,6 +64,48 @@ public class TestProcessor {
             return (int) cu.findAll(MethodDeclaration.class).stream().filter(this::isTestCase).count();
         } catch (Exception e) {
             return -1;
+        }
+    }
+
+    /**
+     * Names of the test methods that failed, taken from the JUnit test identifiers (not from line numbers).
+     * Returns null if some failure is not attributed to a test method (e.g. a failure of the test class).
+     */
+    public Set<String> getFailedTestNames(TestExecutionSummary summary) {
+        Set<String> names = new HashSet<>();
+        for (TestExecutionSummary.Failure failure : summary.getFailures()) {
+            if (!failure.getTestIdentifier().getSource().filter(s -> s instanceof MethodSource).isPresent()) {
+                return null;
+            }
+            names.add(((MethodSource) failure.getTestIdentifier().getSource().get()).getMethodName());
+        }
+        return names;
+    }
+
+    /**
+     * Removes only the failed @Test methods (by name) and keeps the rest of the class (fields, set-up, helpers).
+     * Returns null if the failures cannot be attributed to test methods or no test case is left.
+     */
+    public String keepPassingTests(String code, TestExecutionSummary summary) {
+        Set<String> failed = getFailedTestNames(summary);
+        if (failed == null) {
+            return null;
+        }
+        try {
+            CompilationUnit cu = parser.parse(code).getResult()
+                    .orElseThrow(() -> new NoSuchElementException("CompilationUnit not present in parse result"));
+            for (MethodDeclaration method : cu.findAll(MethodDeclaration.class)) {
+                if (isTestCase(method) && failed.contains(method.getNameAsString())) {
+                    method.remove();
+                }
+            }
+            if (cu.findAll(MethodDeclaration.class).stream().noneMatch(this::isTestCase)) {
+                return null;
+            }
+            return cu.toString();
+        } catch (Exception e) {
+            System.out.println("In TestProcessor.keepPassingTests: " + e);
+            return null;
         }
     }
 
