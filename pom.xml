@@ -205,10 +205,27 @@
             <version>2.0</version>
         </dependency>
 
+        <!-- PIT for zju.cst.aces.mutation.MutationAnalyzer. Not referenced at compile time: the analyzer runs it
+             in a child JVM and only locates these jars on the classpath. -->
         <dependency>
             <groupId>org.pitest</groupId>
-            <artifactId>pitest-maven</artifactId>
-            <version>1.15.2</version> <!-- 或更新版本 -->
+            <artifactId>pitest-command-line</artifactId>
+            <version>1.30.1</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-junit5-plugin</artifactId>
+            <version>1.2.3</version>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- commons-text 1.14.0 (pitest-entry, XML report) needs commons-lang3 >= 3.18; another dependency
+             brings 3.8.1 and Maven keeps the nearest one -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.18.0</version>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>

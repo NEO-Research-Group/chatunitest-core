@@ -91,11 +91,20 @@ public class TestProcessor {
         if (failed == null) {
             return null;
         }
+        return removeTestsByName(code, failed);
+    }
+
+    /**
+     * Removes the @Test methods with these names and keeps the rest of the class (fields, set-up, helpers).
+     * The names may come from JUnit (getFailedTestNames) or from PIT (MutationResult.getFailingTests).
+     * Returns null if the code cannot be parsed or no test case is left.
+     */
+    public String removeTestsByName(String code, Set<String> names) {
         try {
             CompilationUnit cu = parser.parse(code).getResult()
                     .orElseThrow(() -> new NoSuchElementException("CompilationUnit not present in parse result"));
             for (MethodDeclaration method : cu.findAll(MethodDeclaration.class)) {
-                if (isTestCase(method) && failed.contains(method.getNameAsString())) {
+                if (isTestCase(method) && names.contains(method.getNameAsString())) {
                     method.remove();
                 }
             }
@@ -104,7 +113,7 @@ public class TestProcessor {
             }
             return cu.toString();
         } catch (Exception e) {
-            System.out.println("In TestProcessor.keepPassingTests: " + e);
+            System.out.println("In TestProcessor.removeTestsByName: " + e);
             return null;
         }
     }

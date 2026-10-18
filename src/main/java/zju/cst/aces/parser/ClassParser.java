@@ -19,7 +19,6 @@ import com.github.javaparser.resolution.declarations.ResolvedReferenceTypeDeclar
 import com.github.javaparser.resolution.types.ResolvedReferenceType;
 import com.google.gson.Gson;
 import lombok.var;
-import org.apache.commons.collections.CollectionUtils;
 import org.jetbrains.annotations.NotNull;
 import slicing.graphs.CallGraph;
 import slicing.graphs.sdg.SDG;
@@ -561,7 +560,7 @@ public class ClassParser {
 
     private String getInitializer(CompilationUnit cu) {
         List<InitializerDeclaration> all = cu.findAll(InitializerDeclaration.class);
-        if (CollectionUtils.isNotEmpty(all)) {
+        if (all != null && !all.isEmpty()) {
             InitializerDeclaration initializerDeclaration = all.get(0);
             return initializerDeclaration.toString();
         }
