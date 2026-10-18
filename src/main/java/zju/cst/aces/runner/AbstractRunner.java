@@ -677,8 +677,17 @@ public abstract class AbstractRunner {
         // Execution
         TestExecutionSummary summary = config.getValidator().execute(fullTestName);
         if(summary==null){
-            config.getLogger().warn("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > execution timeout round ");
-            return true;//如果超时了直接当做成功跳过这个方法
+            // Timeout (or crash of the execution thread): treat it as a failure so that it is repaired
+            // instead of being reported as success without exporting any test.
+            config.getLogger().warn("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > execution timeout/crash round " + rounds);
+            List<String> timeoutErrors = new ArrayList<>();
+            timeoutErrors.add("Test execution timed out (> 1 min) or crashed. Avoid blocking calls, infinite loops and real network/IO.");
+            TestMessage testMessage = new TestMessage();
+            testMessage.setErrorType(TestMessage.ErrorType.RUNTIME_ERROR);
+            testMessage.setErrorMessage(timeoutErrors);
+            promptInfo.setErrorMsg(testMessage);
+            exportError(code, timeoutErrors, executionErrorPath);
+            return false;
         }
         List<String> errors = extractErrorBySummary(summary, fullTestName);
         boolean compileSuccess = false;
