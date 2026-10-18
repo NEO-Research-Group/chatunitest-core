@@ -159,6 +159,17 @@ public class PromptInfo {
         return tokenSum;
     }
 
+    /** Rounds whose response reached the output limit (the code is probably cut). */
+    public int countTruncatedResponses(int maxResponseTokens) {
+        int count = 0;
+        for (RoundRecord r : records) {
+            if (r.getResponseToken() >= maxResponseTokens) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public void incrementSofiaActivations() {
         sofiaActivations++;
     }
