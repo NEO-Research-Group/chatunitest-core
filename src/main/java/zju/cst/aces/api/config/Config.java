@@ -38,6 +38,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Getter
 @Setter
 public class Config {
+    /** Method selection (MethodRunner): benchmark = external deps AND branches (Expert Systems benchmark). */
+    public static final String METHOD_FILTER_BENCHMARK = "benchmark";
+    public static final String METHOD_FILTER_BRANCHES = "branches";
+    public static final String METHOD_FILTER_EXTERNAL_DEPS = "externalDeps";
+    public static final String METHOD_FILTER_NONE = "none";
+    public static final List<String> METHOD_FILTERS = Arrays.asList(
+            METHOD_FILTER_BENCHMARK, METHOD_FILTER_BRANCHES, METHOD_FILTER_EXTERNAL_DEPS, METHOD_FILTER_NONE);
+
     public String date;
     public Gson GSON;
     public Project project;
@@ -105,6 +113,7 @@ public class Config {
     public List<String> dependencyPaths;
     public boolean generateJsonReport;
     public boolean enablePrune;
+    public String methodFilter;
 
     @Getter
     @Setter
@@ -172,6 +181,7 @@ public class Config {
         public List<String> dependencyPaths;
         public boolean generateJsonReport = false;
         public boolean enablePrune = false;
+        public String methodFilter = METHOD_FILTER_BENCHMARK;
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -563,6 +573,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder methodFilter(String methodFilter) {
+            this.methodFilter = methodFilter;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -687,6 +702,10 @@ public class Config {
             config.setSampleSize(this.sampleSize);
             config.setModule(this.module);
             config.setEnablePrune(this.enablePrune);
+            if (!METHOD_FILTERS.contains(this.methodFilter)) {
+                throw new IllegalArgumentException("Unknown methodFilter '" + this.methodFilter + "'. Valid values: " + METHOD_FILTERS);
+            }
+            config.setMethodFilter(this.methodFilter);
             return config;
         }
     }
@@ -733,6 +752,7 @@ public class Config {
         logger.info(" PhaseType >>> " + this.phaseType);
         logger.info(" Module >>>> " + this.getModule());
         logger.info(" Enable Prune >>>> " + this.isEnablePrune());
+        logger.info(" Method Filter >>>> " + this.getMethodFilter());
         logger.info("\n===================================================================\n");
         try {
             Thread.sleep(1000);

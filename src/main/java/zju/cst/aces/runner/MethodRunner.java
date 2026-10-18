@@ -70,7 +70,9 @@ public class MethodRunner extends ClassRunner {
         int conditionsCount = countConditionsInSource(sourceCode);
         config.getLogger().debug("SOFIA ACTIVATIONS NUMBER: " + promptInfo.sofiaActivations);
         config.getLogger().debug("BRANCH NUMBER: " + conditionsCount);
-        if (promptInfo.sofiaActivations == 0 || conditionsCount == 0) {
+        if (!passesMethodFilter(config.getMethodFilter(), promptInfo.sofiaActivations, conditionsCount)) {
+            config.getLogger().info("Method < " + methodInfo.methodName + " > skipped by methodFilter=" + config.getMethodFilter()
+                    + " (externalDeps=" + promptInfo.sofiaActivations + ", branches=" + conditionsCount + ")");
             return false;
         }
 
@@ -122,6 +124,24 @@ public class MethodRunner extends ClassRunner {
             generateJsonReport(pc.getPromptInfo(), duration, false);
         }
         return false;
+    }
+
+    /**
+     * Method selection. "benchmark" (default) reproduces the Expert Systems benchmark: the method must use
+     * at least one external dependency (SOFIA activations) and have at least one branch.
+     */
+    public static boolean passesMethodFilter(String methodFilter, int externalDeps, int branches) {
+        switch (methodFilter) {
+            case Config.METHOD_FILTER_NONE:
+                return true;
+            case Config.METHOD_FILTER_BRANCHES:
+                return branches > 0;
+            case Config.METHOD_FILTER_EXTERNAL_DEPS:
+                return externalDeps > 0;
+            case Config.METHOD_FILTER_BENCHMARK:
+            default:
+                return externalDeps > 0 && branches > 0;
+        }
     }
 
     public static int countConditionsInSource(String methodSource) {
