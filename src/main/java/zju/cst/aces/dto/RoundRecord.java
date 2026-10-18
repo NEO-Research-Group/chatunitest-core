@@ -16,6 +16,7 @@ public class RoundRecord {
     public String code;
     public boolean hasError;
     public TestMessage errorMsg;
+    public boolean stagnant; // the repair prompt was identical to the previous round's (Config.stagnationStrategy)
 
     public RoundRecord(int round) {
         this.round = round;

@@ -50,6 +50,7 @@ public class PromptInfo {
     public int testsPruned = -1;    // @Test methods removed by the pruning before exporting
     public int testsExported = -1;  // @Test methods in the exported suite
     public int timeouts = 0;        // executions that timed out / crashed (summary == null), over all rounds
+    public int stagnantRounds = 0;  // repair rounds whose prompt was identical to the previous round's
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,

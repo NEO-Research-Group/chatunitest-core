@@ -24,7 +24,11 @@ public class ChatGenerator implements Generator {
     }
 
     public static ChatResponse chat(Config config, List<ChatMessage> chatMessages) {
-        ChatResponse response = new AskGPT(config).askChatGPT(chatMessages);
+        return chat(config, chatMessages, null, false);
+    }
+
+    public static ChatResponse chat(Config config, List<ChatMessage> chatMessages, Double temperatureOverride, boolean noSeed) {
+        ChatResponse response = new AskGPT(config).askChatGPT(chatMessages, temperatureOverride, noSeed);
         if (response == null) {
             throw new RuntimeException("Response is null, failed to get response.");
         }

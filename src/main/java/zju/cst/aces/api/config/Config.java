@@ -45,6 +45,12 @@ public class Config {
     public static final String METHOD_FILTER_NONE = "none";
     public static final List<String> METHOD_FILTERS = Arrays.asList(
             METHOD_FILTER_BENCHMARK, METHOD_FILTER_BRANCHES, METHOD_FILTER_EXTERNAL_DEPS, METHOD_FILTER_NONE);
+    /** What to do when a repair prompt is identical to the previous round's (TestGeneration). none = Expert Systems. */
+    public static final String STAGNATION_NONE = "none";
+    public static final String STAGNATION_TEMPERATURE = "temperature"; // same prompt, stagnationTemperature, no seed
+    public static final String STAGNATION_RESTART = "restart";         // initial prompt, stagnationTemperature, no seed
+    public static final List<String> STAGNATION_STRATEGIES = Arrays.asList(
+            STAGNATION_NONE, STAGNATION_TEMPERATURE, STAGNATION_RESTART);
 
     public String date;
     public Gson GSON;
@@ -114,6 +120,8 @@ public class Config {
     public boolean generateJsonReport;
     public boolean enablePrune;
     public String methodFilter;
+    public String stagnationStrategy;
+    public double stagnationTemperature;
 
     @Getter
     @Setter
@@ -182,6 +190,8 @@ public class Config {
         public boolean generateJsonReport = false;
         public boolean enablePrune = false;
         public String methodFilter = METHOD_FILTER_BENCHMARK;
+        public String stagnationStrategy = STAGNATION_NONE;
+        public double stagnationTemperature = 0.7;
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -578,6 +588,16 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder stagnationStrategy(String stagnationStrategy) {
+            this.stagnationStrategy = stagnationStrategy;
+            return this;
+        }
+
+        public ConfigBuilder stagnationTemperature(double stagnationTemperature) {
+            this.stagnationTemperature = stagnationTemperature;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -706,6 +726,11 @@ public class Config {
                 throw new IllegalArgumentException("Unknown methodFilter '" + this.methodFilter + "'. Valid values: " + METHOD_FILTERS);
             }
             config.setMethodFilter(this.methodFilter);
+            if (!STAGNATION_STRATEGIES.contains(this.stagnationStrategy)) {
+                throw new IllegalArgumentException("Unknown stagnationStrategy '" + this.stagnationStrategy + "'. Valid values: " + STAGNATION_STRATEGIES);
+            }
+            config.setStagnationStrategy(this.stagnationStrategy);
+            config.setStagnationTemperature(this.stagnationTemperature);
             return config;
         }
     }
@@ -753,6 +778,8 @@ public class Config {
         logger.info(" Module >>>> " + this.getModule());
         logger.info(" Enable Prune >>>> " + this.isEnablePrune());
         logger.info(" Method Filter >>>> " + this.getMethodFilter());
+        logger.info(" Stagnation Strategy >>>> " + this.getStagnationStrategy()
+                + (STAGNATION_NONE.equals(this.getStagnationStrategy()) ? "" : " (temperature " + this.getStagnationTemperature() + ")"));
         logger.info("\n===================================================================\n");
         try {
             Thread.sleep(1000);

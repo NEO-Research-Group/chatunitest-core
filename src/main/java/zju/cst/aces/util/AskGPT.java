@@ -27,6 +27,14 @@ public class AskGPT {
     }
 
     public ChatResponse askChatGPT(List<ChatMessage> chatMessages) {
+        return askChatGPT(chatMessages, null, false);
+    }
+
+    /**
+     * @param temperatureOverride temperature for this call only (null = config temperature); config is shared by threads
+     * @param noSeed              do not send random_seed, so that a repeated prompt can get a different response
+     */
+    public ChatResponse askChatGPT(List<ChatMessage> chatMessages, Double temperatureOverride, boolean noSeed) {
         String apiKey = config.getRandomKey();
 
         int maxTry = 5;
@@ -43,8 +51,8 @@ public class AskGPT {
 
                 payload.put("messages", chatMessages);
                 payload.put("model", modelConfig.getModelName());
-                payload.put("temperature", config.getTemperature());
-                if (modelConfig.isSupportsRandomSeed()) {
+                payload.put("temperature", temperatureOverride != null ? temperatureOverride : config.getTemperature());
+                if (modelConfig.isSupportsRandomSeed() && !noSeed) {
                     payload.put("random_seed", 42);
                 }
                 payload.put("frequency_penalty", config.getFrequencyPenalty());
