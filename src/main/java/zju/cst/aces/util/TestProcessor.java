@@ -115,10 +115,14 @@ public class TestProcessor {
             ParseResult<CompilationUnit> parseResult = parser.parse(result);
             CompilationUnit cu = parseResult.getResult().orElseThrow(()->new NoSuchElementException("CompilationUnit not present in parse result"));
             List<MethodDeclaration> methods = cu.findAll(MethodDeclaration.class);
+            Set<String> failed = getFailedTestNames(summary);
             List<Integer> errorLineNum = getErrorLineNum(summary);
             for (MethodDeclaration method : methods) {
-                //TODO: remove error test case and other methods with errors
-                if (containError(errorLineNum, method)) {
+                // By test name when every failure belongs to a test method: only those @Test are removed, never the
+                // set-up or helpers (e.g. Mockito's UnnecessaryStubbingException points to the stubbing in setUp).
+                // Otherwise, the original criterion: any method with a line in the stack traces.
+                if (failed != null ? isTestCase(method) && failed.contains(method.getNameAsString())
+                        : containError(errorLineNum, method)) {
                     method.remove();
                 }
             }
@@ -139,9 +143,11 @@ public class TestProcessor {
             ParseResult<CompilationUnit> parseResult = parser.parse(result);
             CompilationUnit cu = parseResult.getResult().orElseThrow(()->new NoSuchElementException("CompilationUnit not present in parse result"));
             List<MethodDeclaration> methods = cu.findAll(MethodDeclaration.class);
+            Set<String> failed = getFailedTestNames(summary);
             List<Integer> errorLineNum = getErrorLineNum(summary);
             for (MethodDeclaration method : methods) {
-                if (!containError(errorLineNum, method) && isTestCase(method)) {
+                boolean hasError = failed != null ? failed.contains(method.getNameAsString()) : containError(errorLineNum, method);
+                if (!hasError && isTestCase(method)) {
                     promptInfo.addCorrectTest(method);
                     method.remove();
                 }
