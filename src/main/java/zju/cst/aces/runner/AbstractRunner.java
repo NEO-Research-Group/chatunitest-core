@@ -365,6 +365,11 @@ public abstract class AbstractRunner {
     }
 
     public void exportRecord(PromptInfo promptInfo, ClassInfo classInfo, int attempt) {
+        exportRecord(promptInfo, promptInfo.getRecords(), classInfo, attempt, "records.json");
+    }
+
+    /** Records in another file of the same attempt directory (e.g. records_Q1.json of an improvement class). */
+    public void exportRecord(PromptInfo promptInfo, List<RoundRecord> records, ClassInfo classInfo, int attempt, String fileName) {
         String methodIndex = classInfo.methodSigs.get(promptInfo.methodSignature);
         Path recordPath = config.getHistoryPath();
 
@@ -378,10 +383,10 @@ public abstract class AbstractRunner {
         if (!recordPath.toFile().exists()) {
             recordPath.toFile().mkdirs();
         }
-        File recordFile = recordPath.resolve("records.json").toFile();
+        File recordFile = recordPath.resolve(fileName).toFile();
         try (OutputStreamWriter writer = new OutputStreamWriter(
                 new FileOutputStream(recordFile), StandardCharsets.UTF_8)) {
-            writer.write(GSON.toJson(promptInfo.getRecords()));
+            writer.write(GSON.toJson(records));
         } catch (IOException e) {
             throw new RuntimeException("In AbstractRunner.exportRecord: " + e);
         }
@@ -457,6 +462,11 @@ public abstract class AbstractRunner {
     }
 
     public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success) {
+        generateJsonReport(promptInfo, duration, success, null);
+    }
+
+    /** extra: more fields for the entry (e.g. the quality improvement cycle), added at the end. */
+    public synchronized void generateJsonReport(PromptInfo promptInfo, float duration, boolean success, Map<String, String> extra) {
         Path outputPath = config.getTestOutput();
         File outputInfo = outputPath.resolve("generationData.json").toFile();
 
@@ -489,6 +499,9 @@ public abstract class AbstractRunner {
                 || config.getPhaseType().equals("FCE") || config.getPhaseType().equals("ECR")
                 || config.getPhaseType().equals("FCE_WITH_ECR") || config.getPhaseType().equals("ERROR_PARSING"))
             map.put("sofiaActivations", String.valueOf(promptInfo.getSofiaActivations()));
+        if (extra != null) {
+            map.putAll(extra);
+        }
 
         try {
             Files.createDirectories(outputPath);
