@@ -68,15 +68,13 @@ public class TestGeneration {
                 return;
             }
         }
-
+        RepairImpl repair = new RepairImpl(config, pc);
         if (CodeExtractor.isTestMethod(code)) {
             TestSkeleton skeleton = new TestSkeleton(promptInfo); // test skeleton to wrap a test method
             code = skeleton.build(code);
         } else {
-            RepairImpl repair = new RepairImpl(config, pc);
             code = repair.ruleBasedRepair(code);
         }
-
         promptInfo.setUnitTest(code);
         record.setCode(code);
     }

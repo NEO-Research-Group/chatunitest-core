@@ -35,6 +35,14 @@ public class Task {
     Granularity granularity;
     ClassNameProcessor classNameProcessor;
 
+    private String normalizeSignature(String sig) {
+        if (sig == null) {
+            return null;
+        }
+        // 去掉所有空白字符（空格、Tab、换行等）
+        return sig.replaceAll("\\s+", "");
+    }
+
     public Task(Config config, Runner runner) {
         this.config = config;
         this.log = config.getLogger();
@@ -111,6 +119,114 @@ public class Task {
         log.info(String.format("\n==========================\n[%s] Test processed", config.pluginSign));
     }
 
+    /**
+     * Start a method task with specific method signature to distinguish between overloaded methods.
+     * This method will only execute the method that exactly matches the provided method signature.
+     *
+     * @param className The name of the class
+     * @param methodName The name of the method
+     * @param paramTypes String representing the full method signature to match with methodInfo.methodSignature
+     * @throws IOException If an I/O error occurs
+     */
+    public void startMethodWithoutOverloadTask(String className, String methodName, String paramTypes) throws IOException {
+        if (granularity == null) {
+            granularity = Granularity.METHOD;
+        }
+        try {
+            checkTargetFolder(config.getProject());
+        } catch (RuntimeException e) {
+            log.error(e.toString());
+            return;
+        }
+        if (config.getProject().getPackaging().equals("pom")) {
+            log.info(String.format("\n==========================\n[%s] Skip pom-packaging ...", config.pluginSign));
+            return;
+        }
+
+        Phase phase = PhaseImpl.createPhase(config);
+        phase.prepare();
+
+        log.info(String.format("\n==========================\n[%s] Generating tests for class: < ", config.pluginSign) + className
+                + "> method with signature: < " + paramTypes + " > ...");
+
+        // 预先把传入的签名做“紧凑化”（去掉所有空白）
+        String normalizedParamTypes = normalizeSignature(paramTypes);
+
+        try {
+            String fullClassName = getFullClassName(config, className);
+            ClassInfo classInfo = AbstractRunner.getClassInfo(config, fullClassName);
+            MethodInfo methodInfo = null;
+
+            if (methodName.matches("\\d+")) { // use method id instead of method name
+                String methodId = methodName;
+                for (String mSig : classInfo.methodSigs.keySet()) {
+                    if (classInfo.methodSigs.get(mSig).equals(methodId)) {
+                        methodInfo = AbstractRunner.getMethodInfo(config, classInfo, mSig);
+                        break;
+                    }
+                }
+                if (methodInfo == null) {
+                    throw new IOException("Method " + methodName + " in class " + fullClassName + " not found");
+                }
+                try {
+                    this.runner.runMethod(fullClassName, methodInfo);
+                } catch (Exception e) {
+                    log.error("Error when generating tests for " + methodName + " in " + className + " " +
+                            config.getProject().getArtifactId() + "\n" + e.getMessage());
+                }
+            } else {
+                boolean methodFound = false;
+                for (String mSig : classInfo.methodSigs.keySet()) {
+                    // Check if method name matches
+                    if (mSig.split("\\(")[0].equals(methodName)) {
+                        // Get the method info to check parameters
+                        MethodInfo tempMethodInfo = AbstractRunner.getMethodInfo(config, classInfo, mSig);
+                        if (tempMethodInfo == null) {
+                            continue;
+                        }
+
+                        // The methodSignature attribute contains the full method signature including name and parameters
+                        String methodSignature = tempMethodInfo.methodSignature;
+
+                        // 签名对比前先统一紧凑化（去空格）
+                        String normalizedMethodSig = normalizeSignature(methodSignature);
+
+                        // log.info("normalizedMethodSig:" + normalizedMethodSig);
+                        // log.info("normalizedMethodSig:" + normalizedParamTypes);
+
+                        if (normalizedMethodSig.equals(normalizedParamTypes)) {
+                            methodInfo = tempMethodInfo;
+                            methodFound = true;
+                            try {
+                                this.runner.runMethod(fullClassName, methodInfo);
+                            } catch (Exception e) {
+                                log.error("Error when generating tests for method with signature " + paramTypes +
+                                        " in " + className + " " + config.getProject().getArtifactId() + "\n" + e.getMessage());
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (!methodFound) {
+                    throw new IOException("Method with signature " + paramTypes +
+                            " in class " + fullClassName + " not found");
+                }
+            }
+
+        } catch (IOException e) {
+            log.warn("Method not found with signature: " + paramTypes +
+                    " in " + className + " " + config.getProject().getArtifactId());
+            return;
+        }
+
+        log.info(String.format("\n==========================\n[%s] Generation finished", config.pluginSign));
+
+        Path testOutPutPath = config.getTestOutput();
+        classNameProcessor.processJavaFiles(testOutPutPath);
+        log.info(String.format("\n==========================\n[%s] Test processed", config.pluginSign));
+    }
+
     public void startClassTask(String className) throws IOException {
         if(granularity == null){
             granularity = Granularity.CLASS;
@@ -144,6 +260,7 @@ public class Task {
         if(granularity == null){
             granularity = Granularity.PROJECT;
         }
+        Counter.generateMethodCSV(config);
         Project project = config.getProject();
         try {
             checkTargetFolder(project);
