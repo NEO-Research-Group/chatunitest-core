@@ -732,7 +732,8 @@ public abstract class AbstractRunner {
         //execution error
         if (summary.getTestsFailedCount() > 0 || summary.getTestsSucceededCount() == 0) {
             if (config.isEnablePrune() || !isOnlyAssertionError(errors)) {
-                String testProcessed = testProcessor.removeErrorTest(promptInfo, summary);
+                String testProcessed = rounds >= promptInfo.getPruneFromRound()
+                        ? testProcessor.removeErrorTest(promptInfo, summary) : null;
                 // Remove errors successfully, recompile and re-execute test
                 if (testProcessed != null) {
                     config.getLogger().debug("[Original Test]:\n" + code);

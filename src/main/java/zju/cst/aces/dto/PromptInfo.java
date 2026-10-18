@@ -67,6 +67,9 @@ public class PromptInfo {
     public String privateBodies;     // bodies of the private methods of the focal class called by the focal method
     public String improveFce;        // whole focal class (improveFocalContext = fce)
     public int inRoundRestarts = 0;  // repair rounds asked again because the response did not change the test
+    // First round in which the failing tests are pruned (Config.enablePrune). 0 in S0 (as ChatUniTest); the last
+    // repair round in Q_i, so that its failing tests are repaired first and pruned only at the end (enfoque.md §3.1).
+    public int pruneFromRound = 0;
 
 
     /**

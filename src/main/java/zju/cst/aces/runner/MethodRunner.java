@@ -207,6 +207,7 @@ public class MethodRunner extends ClassRunner {
             PromptInfo q = PromptInfo.forImprovement(s0, qName, qPath);
             q.setImproveMode(config.getImprovePromptType());
             q.setSuiteTests(s0Code);
+            q.setPruneFromRound(config.getMaxRepairPerCycle());
             if (Config.IMPROVE_MUTANTS.equals(config.getImprovePromptType())) {
                 q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0)));
                 q.setImproveScore(MutantSelector.score(r0));
