@@ -203,7 +203,7 @@ public class MethodRunner extends ClassRunner {
         final String tag;
         final int num;
         final Map<String, Object> out = new LinkedHashMap<>();
-        final List<Map<String, String>> cycles = new ArrayList<>();
+        final List<Map<String, Object>> cycles = new ArrayList<>();
         final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
         final Map<String, String> suite = new LinkedHashMap<>();   // A_i: test class -> code
         long pitMillis;
@@ -248,7 +248,7 @@ public class MethodRunner extends ClassRunner {
             out.put("discardedCycles", String.valueOf(cycles.size() - valid));
             out.put("pitTimeMillis", String.valueOf(pitMillis + (s0.result == null ? 0 : s0.result.getTotalMillis())));
             out.put("reasoningTokens", String.valueOf(reasoningTokens(s0.info.getRecords())
-                    + cycles.stream().mapToInt(c -> Integer.parseInt(c.get("reasoningTokens"))).sum()));
+                    + cycles.stream().mapToInt(c -> Integer.parseInt((String) c.get("reasoningTokens"))).sum()));
             out.put("qualityTime", String.valueOf((float) (System.nanoTime() - t0) / 1_000_000_000));
             out.put("cycles", cycles);
             return out;
@@ -298,7 +298,7 @@ public class MethodRunner extends ClassRunner {
                     return;
                 }
                 long t0 = System.nanoTime();
-                Map<String, String> c = new LinkedHashMap<>();
+                Map<String, Object> c = new LinkedHashMap<>();
                 cycles.add(c);
                 MutationResult next = cycle(i, selector.select(prev), prev, c);
                 Set<String> killed = detectedIds(next);
@@ -324,7 +324,7 @@ public class MethodRunner extends ClassRunner {
         }
 
         /** Cycle i from A_{i-1} (PIT result prev), recorded in c; returns the PIT result of A_i. */
-        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev, Map<String, String> c) throws IOException {
+        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev, Map<String, Object> c) throws IOException {
             String qName = s0.name.substring(0, s0.name.length() - "_Test".length()) + "_" + tag + i + "_Test";
             Path qPath = config.getTestOutput().resolve(qName.replace(".", File.separator) + ".java");
             c.put("cycle", String.valueOf(i));
@@ -333,7 +333,8 @@ public class MethodRunner extends ClassRunner {
             q.setImproveMode(arm);
             q.setSuiteTests(String.join("\n\n", suite.values()));
             q.setPruneFromRound(config.getMaxRepairPerCycle());
-            String chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.joining(";"));
+            // A list: the ids contain the JVM descriptor of the method, with ';'
+            List<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toList());
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
                 q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0.info)));
                 q.setImproveScore(MutantSelector.score(prev));
@@ -389,7 +390,7 @@ public class MethodRunner extends ClassRunner {
             return r;
         }
 
-        void discard(Map<String, String> c, String outcome) {
+        void discard(Map<String, Object> c, String outcome) {
             c.put("valid", "false");
             c.put("outcome", outcome);
             c.put("qTests", "0");
@@ -398,7 +399,7 @@ public class MethodRunner extends ClassRunner {
         }
 
         /** The accumulated suite A_i and its PIT result (A_{i-1} if the cycle was discarded). */
-        void putSuite(Map<String, String> c, MutationResult r) {
+        void putSuite(Map<String, Object> c, MutationResult r) {
             int tests = 0, asserts = 0;
             for (Map.Entry<String, String> e : suite.entrySet()) {
                 TestProcessor tp = new TestProcessor(e.getKey());
@@ -411,7 +412,7 @@ public class MethodRunner extends ClassRunner {
             putMutation(c, r);
         }
 
-        void putImprovementStats(Map<String, String> c, PromptInfo q, Outcome qo) {
+        void putImprovementStats(Map<String, Object> c, PromptInfo q, Outcome qo) {
             int improveIn = 0, improveOut = 0, repairIn = 0, repairOut = 0;
             for (RoundRecord r : q.getRecords()) {
                 int in = r.getPromptToken() + r.getDiscardedPromptToken();
