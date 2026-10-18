@@ -82,7 +82,13 @@ public class PromptGenerator {
      */
     public List<ChatMessage> generateMessages(PromptInfo promptInfo, String templateName) {
         List<ChatMessage> chatMessages = new ArrayList<>();
-        if (promptInfo.errorMsg == null) { // round 0
+        if (promptInfo.errorMsg == null && promptInfo.getImproveMode() != null) { // improvement (phase 2), round 0 or restart
+            PromptFile improve = Config.IMPROVE_GENERIC.equals(promptInfo.getImproveMode())
+                    ? PromptFile.quality_generic : PromptFile.quality_improve;
+            putImprovementData(promptInfo, templateName);
+            chatMessages.add(ChatMessage.ofSystem(createSystemPrompt(promptInfo, improve.getGenerateSystem())));
+            chatMessages.add(ChatMessage.of(createUserPrompt(promptInfo, improve.getGenerate())));
+        } else if (promptInfo.errorMsg == null) { // round 0
             chatMessages.add(ChatMessage.ofSystem(createSystemPrompt(promptInfo, selectPromptFile(templateName, false).getGenerateSystem())));
             chatMessages.add(ChatMessage.of(createUserPrompt(promptInfo, selectPromptFile(templateName, false).getGenerate())));
         } else {
@@ -93,6 +99,26 @@ public class PromptGenerator {
 
         return chatMessages;
     }
+    /**
+     * Data of the improvement templates. focal_context is the user prompt of the generator's own initial template
+     * (CUT or ECR), so that the improvement sees exactly the context of the generation, in both prompt types.
+     */
+    private void putImprovementData(PromptInfo promptInfo, String templateName) {
+        String focalContext = createUserPrompt(promptInfo, getInitPromptFile(templateName).getGenerate());
+        String fullTestName = promptInfo.getFullTestName();
+        promptTemplate.dataModel.put("focal_context", focalContext);
+        promptTemplate.dataModel.put("suite_tests", nonNull(promptInfo.getSuiteTests()));
+        promptTemplate.dataModel.put("new_class_name", fullTestName.substring(fullTestName.lastIndexOf('.') + 1));
+        promptTemplate.dataModel.put("mutants", nonNull(promptInfo.getImproveMutants()));
+        promptTemplate.dataModel.put("score", nonNull(promptInfo.getImproveScore()));
+        promptTemplate.dataModel.put("private_bodies", nonNull(promptInfo.getPrivateBodies()));
+        promptTemplate.dataModel.put("improve_fce", nonNull(promptInfo.getImproveFce()));
+    }
+
+    private static String nonNull(String s) {
+        return s == null ? "" : s;
+    }
+
     public PromptFile selectPromptFile(String templateName, boolean ifRepair) {
         if (ifRepair) {
             return getRepairPromptFile(templateName);

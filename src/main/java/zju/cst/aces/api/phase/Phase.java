@@ -13,4 +13,6 @@ public interface Phase {
     void generateTest(PromptConstructorImpl pc);
     boolean validateTest(PromptConstructorImpl pc);
     void repairTest(PromptConstructorImpl pc);
+    /** Quality improvement (phase 2): a new class with new tests for a green suite (PromptInfo.improveMode set). */
+    void improveTest(PromptConstructorImpl pc);
 }

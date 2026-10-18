@@ -18,6 +18,11 @@ public class RoundRecord {
     public TestMessage errorMsg;
     public boolean stagnant; // the repair prompt was identical to the previous round's (Config.stagnationStrategy)
     public String promptHash; // MD5 of the prompt as generated, before any change made by the stagnation strategy
+    // Improvement repair (phase 2): the response returned the input test unchanged, and the round was asked again
+    // with the improvement prompt. The tokens of the discarded call are kept here and counted in the totals.
+    public boolean inRoundRestart;
+    public int discardedPromptToken;
+    public int discardedResponseToken;
 
     public RoundRecord(int round) {
         this.round = round;

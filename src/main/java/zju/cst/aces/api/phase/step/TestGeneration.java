@@ -76,6 +76,20 @@ public class TestGeneration {
                 }
             }
             code = generateTest(prompt, record);
+            if (rounds >= 1 && promptInfo.getImproveMode() != null && record.isHasCode()
+                    && sameCode(code, promptInfo.getUnitTest())) {
+                // Improvement repair: the response returns the input test unchanged. Ask again in the same round
+                // with the improvement prompt (same mutants), as stagnationStrategy=restart, without spending a round.
+                config.getLogger().info("Repair of < " + pc.getTestName() + " > returned the same test: asking again with the improvement prompt");
+                record.setInRoundRestart(true);
+                record.setStagnant(true);
+                record.setDiscardedPromptToken(record.getPromptToken());
+                record.setDiscardedResponseToken(record.getResponseToken());
+                promptInfo.setInRoundRestarts(promptInfo.getInRoundRestarts() + 1);
+                promptInfo.setErrorMsg(null);
+                prompt = promptGenerator.generateMessages(promptInfo, config.getPhaseType());
+                code = generateTest(prompt, record);
+            }
             if (!record.isHasCode()) {
                 promptInfo.setUnitTest("");
                 return;
@@ -106,6 +120,26 @@ public class TestGeneration {
         }
         String previous = promptInfo.getRecords().get(rounds - 1).getPromptHash();
         return previous != null && previous.equals(record.getPromptHash());
+    }
+
+    /** Same Java code, ignoring comments and layout (falls back to comparing without whitespace if it does not parse). */
+    protected static boolean sameCode(String a, String b) {
+        if (a == null || b == null || b.isEmpty()) {
+            return false;
+        }
+        return normalize(a).equals(normalize(b));
+    }
+
+    private static String normalize(String code) {
+        try {
+            com.github.javaparser.ast.CompilationUnit cu = new com.github.javaparser.JavaParser().parse(code).getResult()
+                    .orElseThrow(java.util.NoSuchElementException::new);
+            cu.getAllContainedComments().forEach(com.github.javaparser.ast.comments.Comment::remove);
+            code = cu.toString();
+        } catch (Exception e) {
+            // keep the raw code
+        }
+        return code.replaceAll("\\s+", "");
     }
 
     /** Copy of the prompt with STAGNATION_NOTE appended to the last message. */

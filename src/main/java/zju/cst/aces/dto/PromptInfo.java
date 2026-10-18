@@ -58,6 +58,38 @@ public class PromptInfo {
     public int greenCandidateSourceTests = -1; // @Test methods in the round it comes from
     public int greenCandidateRound = -1;
     public int greenFromRound = -1;            // round of the exported PARTIAL_CORRECT_TESTS suite
+    // Quality improvement (phase 2): set only in the PromptInfo of a new class Q_i (see forImprovement).
+    // improveMode = Config.IMPROVE_MUTANTS | IMPROVE_GENERIC; null in the generation of S0.
+    public String improveMode;
+    public String suiteTests;        // the accumulated green suite, as context (not to repeat its tests)
+    public String improveMutants;    // surviving mutants, one per line (mutants mode)
+    public String improveScore;      // mutation score of the suite, as a sentence (mutants mode)
+    public String privateBodies;     // bodies of the private methods of the focal class called by the focal method
+    public String improveFce;        // whole focal class (improveFocalContext = fce)
+    public int inRoundRestarts = 0;  // repair rounds asked again because the response did not change the test
+
+
+    /**
+     * PromptInfo of a new improvement class (Q_i) for the focal method of s0: the same context (the copy
+     * constructor leaves out the external dependencies, the other method bodies and the descriptor), and its own
+     * records, correct tests and validation state.
+     */
+    public static PromptInfo forImprovement(PromptInfo s0, String fullTestName, java.nio.file.Path testPath) {
+        PromptInfo q = new PromptInfo(s0);
+        q.setExternalConstructorDeps(s0.getExternalConstructorDeps());
+        q.setExternalMethodDeps(s0.getExternalMethodDeps());
+        q.setOtherMethodBodies(s0.getOtherMethodBodies());
+        q.setMethodDescriptor(s0.getMethodDescriptor());
+        q.setSofiaActivations(s0.getSofiaActivations());
+        q.setTestNum(s0.getTestNum());
+        q.setRecords(new ArrayList<>());
+        q.setCorrectTests(new HashMap<>());
+        q.setErrorMsg(null);
+        q.setUnitTest("");
+        q.setFullTestName(fullTestName);
+        q.setTestPath(testPath);
+        return q;
+    }
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
@@ -146,7 +178,7 @@ public class PromptInfo {
     public Integer getTokenCount() {
         Integer tokenSum = 0;
         for (RoundRecord r : records) {
-            tokenSum += r.getPromptToken() + r.getResponseToken();
+            tokenSum += r.getPromptToken() + r.getResponseToken() + r.getDiscardedPromptToken() + r.getDiscardedResponseToken();
         }
         return tokenSum;
     }
@@ -154,7 +186,7 @@ public class PromptInfo {
     public Integer getInputTokenCount() {
         Integer tokenSum = 0;
         for (RoundRecord r : records) {
-            tokenSum += r.getPromptToken();
+            tokenSum += r.getPromptToken() + r.getDiscardedPromptToken();
         }
         return tokenSum;
     }
@@ -162,7 +194,7 @@ public class PromptInfo {
     public Integer getOutputTokenCount() {
         Integer tokenSum = 0;
         for (RoundRecord r : records) {
-            tokenSum += r.getResponseToken();
+            tokenSum += r.getResponseToken() + r.getDiscardedResponseToken();
         }
         return tokenSum;
     }

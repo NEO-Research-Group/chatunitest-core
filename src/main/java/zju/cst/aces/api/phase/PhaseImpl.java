@@ -55,6 +55,10 @@ public class PhaseImpl implements Phase {
     public void repairTest(PromptConstructorImpl pc) {
         createRepairTask().execute(pc);
     }
+
+    public void improveTest(PromptConstructorImpl pc) {
+        createImprovement().execute(pc);
+    }
     // Factory methods to create task instances
     protected Preparation createPreparation() {
         return new Preparation(config);
@@ -74,6 +78,10 @@ public class PhaseImpl implements Phase {
 
     protected Repair createRepairTask() {
         return new Repair(config);
+    }
+
+    protected Improvement createImprovement() {
+        return new Improvement(config);
     }
 
 
