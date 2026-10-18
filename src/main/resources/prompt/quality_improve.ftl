@@ -1,0 +1,25 @@
+${focal_context}
+The existing test suite of the focal method is below. All its tests compile and pass:
+```
+${suite_tests}
+```
+
+Mutation testing with PIT shows that the assertions of the suite are weak: ${score}
+The following mutants of the focal method SURVIVED, that is, all the tests still pass when the code is changed in this way:
+${mutants}
+
+Write a new test class `${new_class_name}` in the package `${package}` with new test cases that detect (kill) these mutants, so that each change above makes at least one new test fail. Check return values, state changes and the interactions with the dependencies (`verify`). Some mutants may be equivalent to the original code: do not assert behaviour that the original code does not have just to kill them.
+The new class contains only new tests (do not copy the tests of the suite), compiles on its own, and all its tests pass on the original code.
+<#if private_bodies?has_content>
+The focal method calls private methods of the focal class. Their source code is below; check their effect through the dependencies, the state or the return value, not with stubs or `verify` of the private methods:
+```
+${private_bodies}
+```
+</#if>
+<#if improve_fce?has_content>
+The source code of the whole focal class is:
+```
+${improve_fce}
+```
+</#if>
+Return the whole new test class in a single ```java block. You can use JUnit 5, Mockito 3 and reflection. No explanation is needed.
