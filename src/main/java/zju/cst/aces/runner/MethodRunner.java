@@ -205,6 +205,7 @@ public class MethodRunner extends ClassRunner {
         final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
         final Map<String, String> suite = new LinkedHashMap<>();   // A_i: test class -> code
         long pitMillis;
+        int current;   // cycle in progress
 
         QualityLoop(Phase phase, S0Baseline s0, String arm, int num) {
             this.phase = phase;
@@ -222,8 +223,11 @@ public class MethodRunner extends ClassRunner {
             out.put("mutators", config.getMutators());
             out.put("maxRepairPerCycle", String.valueOf(config.getMaxRepairPerCycle()));
             out.put("maxQualityCycles", String.valueOf(config.getMaxQualityCycles()));
+            out.put("maxMutantsPerPrompt", String.valueOf(config.getMaxMutantsPerPrompt()));
+            out.put("maxMutantAttempts", String.valueOf(config.getMaxMutantAttempts()));
+            out.put("stagnationCycles", String.valueOf(config.getStagnationCycles()));
             if (s0.error != null) {
-                out.put("qualityOutcome", "ERROR");
+                stop("ERROR", 0);
                 out.put("qualityError", s0.error);
                 return out;
             }
@@ -233,30 +237,56 @@ public class MethodRunner extends ClassRunner {
                 cycles();
             } catch (Exception e) {
                 config.getLogger().warn("Quality cycles of < " + methodInfo.methodName + " > (" + arm + ") failed: " + e);
-                out.put("qualityOutcome", "ERROR");
+                stop("ERROR", current);
                 out.put("qualityError", e.toString());
             }
             out.put("pitMillis", String.valueOf(pitMillis + s0.result.getTotalMillis()));
             return out;
         }
 
+        /**
+         * Stops at the first of (enfoque.md §3.3): N cycles done (MAX_CYCLES); no SURVIVED mutant left
+         * (NO_SURVIVED) or only excluded ones (ALL_EXHAUSTED); stagnationCycles cycles in a row without killing
+         * any new mutant (STAGNATION). The generic arm rotates and counts the attempts in the same way, without
+         * showing the mutants, so that both arms stop by the same rule.
+         */
         void cycles() throws IOException {
             if (!s0.ok()) {
-                out.put("qualityOutcome", "NO_CYCLE_" + s0.result.getStatus());
+                stop("NO_CYCLE_" + s0.result.getStatus(), 0);
                 return;
             }
             suite.put(s0.name, s0.code);
             MutationResult prev = s0.result;
+            int withoutKills = 0;
             for (int i = 1; i <= config.getMaxQualityCycles(); i++) {
-                if (selector.candidates(prev).isEmpty()) {
-                    out.put("qualityOutcome", "NO_SURVIVED");
-                    out.put("cyclesRun", String.valueOf(i - 1));
+                current = i;
+                if (prev.getSurvived() == 0) {
+                    stop("NO_SURVIVED", i - 1);
                     return;
                 }
-                prev = cycle(i, selector.select(prev), prev);
+                if (selector.candidates(prev).isEmpty()) {
+                    stop("ALL_EXHAUSTED", i - 1);
+                    return;
+                }
+                MutationResult next = cycle(i, selector.select(prev), prev);
+                Set<String> killed = detectedIds(next);
+                killed.removeAll(detectedIds(prev));
+                out.put("c" + i + "_newKilled", String.valueOf(killed.size()));
+                withoutKills = killed.isEmpty() ? withoutKills + 1 : 0;
+                prev = next;
+                if (withoutKills >= config.getStagnationCycles()) {
+                    stop("STAGNATION", i);
+                    return;
+                }
             }
-            out.put("qualityOutcome", "MAX_CYCLES");
-            out.put("cyclesRun", String.valueOf(config.getMaxQualityCycles()));
+            stop("MAX_CYCLES", config.getMaxQualityCycles());
+        }
+
+        void stop(String reason, int cycle) {
+            out.put("stopReason", reason);
+            out.put("stopCycle", String.valueOf(cycle));
+            config.getLogger().info("Quality cycles of < " + methodInfo.methodName + " > (" + arm + "): " + reason
+                    + " after " + cycle + " cycles");
         }
 
         /** Cycle i from A_{i-1} (PIT result prev); returns the PIT result of A_i. */
@@ -268,10 +298,13 @@ public class MethodRunner extends ClassRunner {
             q.setImproveMode(arm);
             q.setSuiteTests(String.join("\n\n", suite.values()));
             q.setPruneFromRound(config.getMaxRepairPerCycle());
+            String chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.joining(";"));
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
                 q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0.info)));
                 q.setImproveScore(MutantSelector.score(prev));
-                out.put(p + "mutants", chosen.stream().map(m -> m.id).collect(Collectors.joining(";")));
+                out.put(p + "shownMutants", chosenIds);
+            } else {
+                out.put(p + "hiddenMutants", chosenIds);   // chosen and counted as attempts, not in the prompt
             }
             if (Config.IMPROVE_CONTEXT_FCE.equals(config.getImproveFocalContext())) {
                 q.setImproveFce(classInfo.getCompilationUnitCode());
@@ -307,8 +340,8 @@ public class MethodRunner extends ClassRunner {
                 exportTest(r.getFinalTests().get(qName), qPath);
             }
             suite.put(qName, r.getFinalTests().get(qName));
-            Set<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
-            long killedChosen = r.getMutants().stream().filter(m -> m.detected && chosenIds.contains(m.id)).count();
+            Set<String> chosenSet = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
+            long killedChosen = r.getMutants().stream().filter(m -> m.detected && chosenSet.contains(m.id)).count();
             out.put(p + "killedChosen", String.valueOf(killedChosen));
             out.put(p + "outcome", qo == Outcome.PARTIAL ? "VALID_PARTIAL"
                     : "PASSED_AFTER_PRUNE".equals(q.getValidationOutcome()) ? "VALID_PRUNED" : "VALID_PASSED");
@@ -364,6 +397,10 @@ public class MethodRunner extends ClassRunner {
             config.getLogger().warn("PIT log tail:\n" + r.getLogTail() + "\n" + String.join("\n", r.getCompileErrors()));
         }
         return r;
+    }
+
+    static Set<String> detectedIds(MutationResult r) {
+        return r.getMutants().stream().filter(m -> m.detected).map(m -> m.id).collect(Collectors.toCollection(HashSet::new));
     }
 
     static int prunedCount(MutationResult r, String testClass) {

@@ -7,7 +7,8 @@ import java.util.stream.Collectors;
  * Mutants for the improvement prompt (enfoque.md §3.2): SURVIVED mutants of the focal method (NO_COVERAGE is not
  * passed), the least tried first, at most k. Each appearance in a prompt is an attempt, also if the cycle is
  * discarded; a mutant tried maxAttempts times without being killed is excluded. One selector per run, so that the
- * attempts are kept across cycles (Mutant.id is stable).
+ * attempts are kept across cycles (Mutant.id is stable). The generic arm uses its own selector in the same way,
+ * without showing the mutants, so that both arms stop by the same rule (no SURVIVED mutant that is not excluded).
  */
 public class MutantSelector {
     private final int k;
