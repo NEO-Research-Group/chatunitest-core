@@ -52,6 +52,14 @@ public class Config {
     public static final String STAGNATION_FEEDBACK = "feedback";       // same prompt plus a note that the fix did not work
     public static final List<String> STAGNATION_STRATEGIES = Arrays.asList(
             STAGNATION_NONE, STAGNATION_TEMPERATURE, STAGNATION_RESTART, STAGNATION_FEEDBACK);
+    /** Prompt of the quality improvement (phase 2): surviving mutants, or the generic control without them. */
+    public static final String IMPROVE_MUTANTS = "mutants";
+    public static final String IMPROVE_GENERIC = "generic";
+    public static final List<String> IMPROVE_PROMPT_TYPES = Arrays.asList(IMPROVE_MUTANTS, IMPROVE_GENERIC);
+    /** Extra focal-class context of the improvement prompt: bodies of the private methods, or the whole class. */
+    public static final String IMPROVE_CONTEXT_BODIES = "bodies";
+    public static final String IMPROVE_CONTEXT_FCE = "fce";
+    public static final List<String> IMPROVE_FOCAL_CONTEXTS = Arrays.asList(IMPROVE_CONTEXT_BODIES, IMPROVE_CONTEXT_FCE);
 
     public String date;
     public Gson GSON;
@@ -123,6 +131,17 @@ public class Config {
     public String methodFilter;
     public String stagnationStrategy;
     public double stagnationTemperature;
+    // Quality improvement guided by mutation testing (phase 2, CUTMUT)
+    public boolean enableQualityImprove;
+    public int maxQualityCycles;
+    public int maxRepairPerCycle;
+    public int maxMutantsPerPrompt;
+    public int maxMutantAttempts;
+    public int stagnationCycles;
+    public String mutators;
+    public int pitTimeout;
+    public String improvePromptType;
+    public String improveFocalContext;
 
     @Getter
     @Setter
@@ -193,6 +212,16 @@ public class Config {
         public String methodFilter = METHOD_FILTER_BENCHMARK;
         public String stagnationStrategy = STAGNATION_NONE;
         public double stagnationTemperature = 0.7;
+        public boolean enableQualityImprove = false;
+        public int maxQualityCycles = 5;
+        public int maxRepairPerCycle = 2;
+        public int maxMutantsPerPrompt = 5;
+        public int maxMutantAttempts = 2;
+        public int stagnationCycles = 2;
+        public String mutators = "STRONGER";
+        public int pitTimeout = 600;
+        public String improvePromptType = IMPROVE_MUTANTS;
+        public String improveFocalContext = IMPROVE_CONTEXT_BODIES;
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -599,6 +628,56 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder enableQualityImprove(boolean enableQualityImprove) {
+            this.enableQualityImprove = enableQualityImprove;
+            return this;
+        }
+
+        public ConfigBuilder maxQualityCycles(int maxQualityCycles) {
+            this.maxQualityCycles = maxQualityCycles;
+            return this;
+        }
+
+        public ConfigBuilder maxRepairPerCycle(int maxRepairPerCycle) {
+            this.maxRepairPerCycle = maxRepairPerCycle;
+            return this;
+        }
+
+        public ConfigBuilder maxMutantsPerPrompt(int maxMutantsPerPrompt) {
+            this.maxMutantsPerPrompt = maxMutantsPerPrompt;
+            return this;
+        }
+
+        public ConfigBuilder maxMutantAttempts(int maxMutantAttempts) {
+            this.maxMutantAttempts = maxMutantAttempts;
+            return this;
+        }
+
+        public ConfigBuilder stagnationCycles(int stagnationCycles) {
+            this.stagnationCycles = stagnationCycles;
+            return this;
+        }
+
+        public ConfigBuilder mutators(String mutators) {
+            this.mutators = mutators;
+            return this;
+        }
+
+        public ConfigBuilder pitTimeout(int pitTimeout) {
+            this.pitTimeout = pitTimeout;
+            return this;
+        }
+
+        public ConfigBuilder improvePromptType(String improvePromptType) {
+            this.improvePromptType = improvePromptType;
+            return this;
+        }
+
+        public ConfigBuilder improveFocalContext(String improveFocalContext) {
+            this.improveFocalContext = improveFocalContext;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -732,6 +811,25 @@ public class Config {
             }
             config.setStagnationStrategy(this.stagnationStrategy);
             config.setStagnationTemperature(this.stagnationTemperature);
+            config.setEnableQualityImprove(this.enableQualityImprove);
+            config.setMaxQualityCycles(this.maxQualityCycles);
+            config.setMaxRepairPerCycle(this.maxRepairPerCycle);
+            config.setMaxMutantsPerPrompt(this.maxMutantsPerPrompt);
+            config.setMaxMutantAttempts(this.maxMutantAttempts);
+            config.setStagnationCycles(this.stagnationCycles);
+            if (this.mutators == null || this.mutators.trim().isEmpty()) {
+                throw new IllegalArgumentException("mutators must be explicit (e.g. STRONGER, ALL)");
+            }
+            config.setMutators(this.mutators.trim());
+            config.setPitTimeout(this.pitTimeout);
+            if (!IMPROVE_PROMPT_TYPES.contains(this.improvePromptType)) {
+                throw new IllegalArgumentException("Unknown improvePromptType '" + this.improvePromptType + "'. Valid values: " + IMPROVE_PROMPT_TYPES);
+            }
+            config.setImprovePromptType(this.improvePromptType);
+            if (!IMPROVE_FOCAL_CONTEXTS.contains(this.improveFocalContext)) {
+                throw new IllegalArgumentException("Unknown improveFocalContext '" + this.improveFocalContext + "'. Valid values: " + IMPROVE_FOCAL_CONTEXTS);
+            }
+            config.setImproveFocalContext(this.improveFocalContext);
             return config;
         }
     }
@@ -781,6 +879,14 @@ public class Config {
         logger.info(" Method Filter >>>> " + this.getMethodFilter());
         logger.info(" Stagnation Strategy >>>> " + this.getStagnationStrategy()
                 + (STAGNATION_NONE.equals(this.getStagnationStrategy()) ? "" : " (temperature " + this.getStagnationTemperature() + ")"));
+        logger.info(" Quality Improve >>>> " + this.isEnableQualityImprove());
+        if (this.isEnableQualityImprove()) {
+            logger.info(" - Prompt: " + this.getImprovePromptType() + ", focal context: " + this.getImproveFocalContext()
+                    + ", mutators: " + this.getMutators() + ", PIT timeout: " + this.getPitTimeout() + " s");
+            logger.info(" - Cycles: " + this.getMaxQualityCycles() + ", repairs per cycle: " + this.getMaxRepairPerCycle()
+                    + ", mutants per prompt: " + this.getMaxMutantsPerPrompt() + ", attempts per mutant: "
+                    + this.getMaxMutantAttempts() + ", stagnation cycles: " + this.getStagnationCycles());
+        }
         logger.info("\n===================================================================\n");
         try {
             Thread.sleep(1000);
