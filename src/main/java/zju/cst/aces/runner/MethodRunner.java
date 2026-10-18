@@ -393,6 +393,9 @@ public class MethodRunner extends ClassRunner {
         void discard(Map<String, Object> c, String outcome) {
             c.put("valid", "false");
             c.put("outcome", outcome);
+            c.putIfAbsent("pitStatus", "NOT_RUN");   // red: A_i = A_{i-1}, no PIT (same keys in every cycle)
+            c.putIfAbsent("pitTime", "0");
+            c.putIfAbsent("pitPruned", "0");
             c.put("qTests", "0");
             c.put("qAsserts", "0");
             c.put("killedChosen", "0");
