@@ -53,6 +53,17 @@ public class TestProcessor {
         }).collect(Collectors.toList()).isEmpty();
     }
 
+    /** Number of @Test/@ParameterizedTest methods in the given test code, or -1 if it cannot be parsed. */
+    public int countTestCases(String code) {
+        try {
+            ParseResult<CompilationUnit> parseResult = parser.parse(code);
+            CompilationUnit cu = parseResult.getResult().orElseThrow(()->new NoSuchElementException("CompilationUnit not present in parse result"));
+            return (int) cu.findAll(MethodDeclaration.class).stream().filter(this::isTestCase).count();
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
     public String removeErrorTest(PromptInfo promptInfo, TestExecutionSummary summary) {
         String result = promptInfo.getUnitTest();
         try {

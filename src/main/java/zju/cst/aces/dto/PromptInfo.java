@@ -40,6 +40,16 @@ public class PromptInfo {
     public String max_coverage_test_code;
     public Integer sofiaActivations=0;
     public String methodDescriptor;
+    // Result of the last validation (AbstractRunner.runTest), written to the JSON report.
+    // Counts are -1 when the test was not executed (e.g. noExecution or compilation error).
+    public String validationOutcome = "NOT_VALIDATED";
+    public int testsFound = -1;     // tests run by JUnit (parameterized invocations count separately)
+    public int testsPassed = -1;
+    public int testsFailures = -1;  // AssertionError (wrong oracle)
+    public int testsErrors = -1;    // any other exception
+    public int testsPruned = -1;    // @Test methods removed by the pruning before exporting
+    public int testsExported = -1;  // @Test methods in the exported suite
+    public int timeouts = 0;        // executions that timed out / crashed (summary == null), over all rounds
 
 
     public PromptInfo(boolean hasDep, String fullClassName, String methodName,
@@ -151,5 +161,15 @@ public class PromptInfo {
 
     public void incrementSofiaActivations() {
         sofiaActivations++;
+    }
+
+    public void resetValidationStats(String outcome) {
+        validationOutcome = outcome;
+        testsFound = -1;
+        testsPassed = -1;
+        testsFailures = -1;
+        testsErrors = -1;
+        testsPruned = -1;
+        testsExported = -1;
     }
 }

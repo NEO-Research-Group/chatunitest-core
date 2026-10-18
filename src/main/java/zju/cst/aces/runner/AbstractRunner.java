@@ -472,6 +472,14 @@ public abstract class AbstractRunner {
         map.put("round", String.valueOf(promptInfo.round));
         map.put("inputTokenConsumption", String.valueOf(promptInfo.getInputTokenCount()));
         map.put("outputTokenConsumption", String.valueOf(promptInfo.getOutputTokenCount()));
+        map.put("validationOutcome", promptInfo.getValidationOutcome());
+        map.put("testsFound", String.valueOf(promptInfo.getTestsFound()));
+        map.put("testsPassed", String.valueOf(promptInfo.getTestsPassed()));
+        map.put("testsFailures", String.valueOf(promptInfo.getTestsFailures()));
+        map.put("testsErrors", String.valueOf(promptInfo.getTestsErrors()));
+        map.put("testsPruned", String.valueOf(promptInfo.getTestsPruned()));
+        map.put("testsExported", String.valueOf(promptInfo.getTestsExported()));
+        map.put("timeouts", String.valueOf(promptInfo.getTimeouts()));
         if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD")
                 || config.getPhaseType().equals("FCE") || config.getPhaseType().equals("ECR")
                 || config.getPhaseType().equals("FCE_WITH_ECR") || config.getPhaseType().equals("ERROR_PARSING"))
@@ -665,10 +673,13 @@ public abstract class AbstractRunner {
         Path executionErrorPath = config.getErrorOutput().resolve(testName + "_ExecutionError_" + rounds + ".txt");
         boolean compileResult = config.getValidator().semanticValidate(code, testName, compilationErrorPath, promptInfo);
         if (!compileResult) {
+            promptInfo.resetValidationStats("COMPILE_ERROR");
             config.getLogger().info("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > compilation failed round " + rounds);
             return false;
         }
         if (config.isNoExecution()) {
+            promptInfo.resetValidationStats("NOT_EXECUTED");
+            promptInfo.setTestsExported(testProcessor.countTestCases(code));
             exportTest(code, savePath);
             config.getLogger().info("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > generated successfully round " + rounds);
             return true;
@@ -680,6 +691,8 @@ public abstract class AbstractRunner {
             // Timeout (or crash of the execution thread): treat it as a failure so that it is repaired
             // instead of being reported as success without exporting any test.
             config.getLogger().warn("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > execution timeout/crash round " + rounds);
+            promptInfo.resetValidationStats("TIMEOUT");
+            promptInfo.setTimeouts(promptInfo.getTimeouts() + 1);
             List<String> timeoutErrors = new ArrayList<>();
             timeoutErrors.add("Test execution timed out (> 1 min) or crashed. Avoid blocking calls, infinite loops and real network/IO.");
             TestMessage testMessage = new TestMessage();
@@ -690,6 +703,7 @@ public abstract class AbstractRunner {
             return false;
         }
         List<String> errors = extractErrorBySummary(summary, fullTestName);
+        recordExecutionStats(promptInfo, summary);
         boolean compileSuccess = false;
         //execution error
         if (summary.getTestsFailedCount() > 0 || summary.getTestsSucceededCount() == 0) {
@@ -700,7 +714,17 @@ public abstract class AbstractRunner {
                     config.getLogger().debug("[Original Test]:\n" + code);
                     if (config.getValidator().semanticValidate(testProcessed, testName, compilationErrorPath, null)) {
                         compileSuccess=true;
-                        if (config.getValidator().runtimeValidate(fullTestName)) {
+                        // Same check as runtimeValidate (no failures), but with the timeout of execute()
+                        TestExecutionSummary prunedSummary = config.getValidator().execute(fullTestName);
+                        if (prunedSummary == null) {
+                            promptInfo.setTimeouts(promptInfo.getTimeouts() + 1);
+                        }
+                        if (prunedSummary != null && prunedSummary.getTestsFailedCount() == 0) {
+                            int exported = testProcessor.countTestCases(testProcessed);
+                            int original = testProcessor.countTestCases(code);
+                            promptInfo.setValidationOutcome("PASSED_AFTER_PRUNE");
+                            promptInfo.setTestsExported(exported);
+                            promptInfo.setTestsPruned(exported < 0 || original < 0 ? -1 : original - exported);
                             exportTest(testProcessed, savePath);
                             config.getLogger().debug("[Processed Test]:\n" + testProcessed);
                             config.getLogger().info("Processed test for method < " + promptInfo.getMethodInfo().getMethodName() + " > generated successfully round " + rounds);
@@ -716,16 +740,45 @@ public abstract class AbstractRunner {
                 promptInfo.setErrorMsg(testMessage);
                 exportError(code, errors, executionErrorPath);
                 testProcessor.removeCorrectTest(promptInfo, summary);
+                promptInfo.setValidationOutcome("EXEC_FAILED");
                 config.getLogger().info("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > execution failed round " + rounds);
                 return false;
             }
         }
         summary.printTo(new PrintWriter(System.out));
+        if (summary.getTestsFailedCount() > 0) {
+            // only assertion failures and pruning disabled: the suite is exported with red tests
+            promptInfo.setValidationOutcome("EXPORTED_WITH_FAILURES");
+        } else if (summary.getTestsSucceededCount() == 0) {
+            promptInfo.setValidationOutcome("NO_TESTS_RUN");
+        } else {
+            promptInfo.setValidationOutcome("PASSED");
+        }
+        promptInfo.setTestsPruned(0);
+        promptInfo.setTestsExported(testProcessor.countTestCases(code));
         if(!config.phaseType.equals("COVERUP")){
             exportTest(code, savePath);
         }
         config.getLogger().info("Test for method < " + promptInfo.getMethodInfo().getMethodName() + " > compile and execute successfully round " + rounds);
         return true;
+    }
+
+    /** Counts of the execution: failures = AssertionError (opentest4j included), errors = any other exception. */
+    public static void recordExecutionStats(PromptInfo promptInfo, TestExecutionSummary summary) {
+        promptInfo.resetValidationStats("EXECUTED");
+        int failures = 0;
+        int errors = 0;
+        for (TestExecutionSummary.Failure failure : summary.getFailures()) {
+            if (failure.getException() instanceof AssertionError) {
+                failures++;
+            } else {
+                errors++;
+            }
+        }
+        promptInfo.setTestsFound((int) summary.getTestsFoundCount());
+        promptInfo.setTestsPassed((int) summary.getTestsSucceededCount());
+        promptInfo.setTestsFailures(failures);
+        promptInfo.setTestsErrors(errors);
     }
 
     public static boolean isOnlyAssertionError(List<String> errors) {

@@ -18,6 +18,7 @@ public class Validation {
         PromptInfo promptInfo = pc.getPromptInfo();
 
         if (promptInfo.getUnitTest().isEmpty()) {
+            promptInfo.resetValidationStats("EMPTY_RESPONSE");
             return false;
         }
         if (runTest(config, pc.getFullTestName(), promptInfo, promptInfo.getRound())) {
