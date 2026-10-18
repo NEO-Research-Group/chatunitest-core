@@ -62,7 +62,8 @@ public class TestGeneration {
             code = obfuscator.deobfuscateJava(code);
         } else {
             prompt = promptGenerator.generateMessages(promptInfo,config.getPhaseType());
-            if (isStagnant(promptInfo, prompt, rounds)) {
+            record.setPromptHash(hash(prompt));
+            if (isStagnant(promptInfo, record, rounds)) {
                 record.setStagnant(true);
                 promptInfo.setStagnantRounds(promptInfo.getStagnantRounds() + 1);
                 config.getLogger().info("Repair prompt for method < " + methodInfo.methodName + " > identical to round "
@@ -70,6 +71,8 @@ public class TestGeneration {
                 if (Config.STAGNATION_RESTART.equals(config.getStagnationStrategy())) {
                     promptInfo.setErrorMsg(null); // the prompt generator falls back to the initial prompt
                     prompt = promptGenerator.generateMessages(promptInfo, config.getPhaseType());
+                } else if (Config.STAGNATION_FEEDBACK.equals(config.getStagnationStrategy())) {
+                    prompt = withStagnationNote(prompt);
                 }
             }
             code = generateTest(prompt, record);
@@ -89,13 +92,48 @@ public class TestGeneration {
         record.setCode(code);
     }
 
-    /** A repair round is stagnant when its prompt is the same as the previous round's (same code, same error). */
-    protected boolean isStagnant(PromptInfo promptInfo, List<ChatMessage> prompt, int rounds) {
+    public static final String STAGNATION_NOTE = "\n\nNote: this same unit test was already returned in the previous attempt"
+            + " and it still fails with the same error. Do not return it unchanged: rewrite the lines that cause the error,"
+            + " or remove that part of the test, so that the error disappears.";
+
+    /**
+     * A repair round is stagnant when its prompt, as generated, is the same as the previous round's (same code, same
+     * error). The hashes are compared, so a prompt changed by the stagnation strategy does not hide the next repetition.
+     */
+    protected boolean isStagnant(PromptInfo promptInfo, RoundRecord record, int rounds) {
         if (rounds < 1 || promptInfo.getRecords().size() < rounds) {
             return false;
         }
-        List<ChatMessage> previous = promptInfo.getRecords().get(rounds - 1).getPrompt();
-        return previous != null && previous.equals(prompt);
+        String previous = promptInfo.getRecords().get(rounds - 1).getPromptHash();
+        return previous != null && previous.equals(record.getPromptHash());
+    }
+
+    /** Copy of the prompt with STAGNATION_NOTE appended to the last message. */
+    protected static List<ChatMessage> withStagnationNote(List<ChatMessage> prompt) {
+        List<ChatMessage> changed = new java.util.ArrayList<>();
+        for (ChatMessage m : prompt) {
+            changed.add(new ChatMessage(m.getRole(), m.getContent()));
+        }
+        ChatMessage last = changed.get(changed.size() - 1);
+        last.setContent(last.getContent() + STAGNATION_NOTE);
+        return changed;
+    }
+
+    protected static String hash(List<ChatMessage> prompt) {
+        StringBuilder sb = new StringBuilder();
+        for (ChatMessage m : prompt) {
+            sb.append(m.getRole()).append('\u0000').append(m.getContent()).append('\u0001');
+        }
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("MD5").digest(sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : d) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return String.valueOf(sb.toString().hashCode());
+        }
     }
 
     public String generateTest(List<ChatMessage> prompt, RoundRecord record) {
@@ -109,7 +147,8 @@ public class TestGeneration {
         config.getLogger().debug("[Prompt]:\n" + prompt);
 
         ChatResponse response;
-        if (record.isStagnant() && !Config.STAGNATION_NONE.equals(config.getStagnationStrategy())) {
+        if (record.isStagnant() && (Config.STAGNATION_TEMPERATURE.equals(config.getStagnationStrategy())
+                || Config.STAGNATION_RESTART.equals(config.getStagnationStrategy()))) {
             response = ChatGenerator.chat(config, prompt, config.getStagnationTemperature(), true);
         } else {
             response = ChatGenerator.chat(config, prompt);

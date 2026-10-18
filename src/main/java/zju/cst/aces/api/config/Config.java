@@ -49,8 +49,9 @@ public class Config {
     public static final String STAGNATION_NONE = "none";
     public static final String STAGNATION_TEMPERATURE = "temperature"; // same prompt, stagnationTemperature, no seed
     public static final String STAGNATION_RESTART = "restart";         // initial prompt, stagnationTemperature, no seed
+    public static final String STAGNATION_FEEDBACK = "feedback";       // same prompt plus a note that the fix did not work
     public static final List<String> STAGNATION_STRATEGIES = Arrays.asList(
-            STAGNATION_NONE, STAGNATION_TEMPERATURE, STAGNATION_RESTART);
+            STAGNATION_NONE, STAGNATION_TEMPERATURE, STAGNATION_RESTART, STAGNATION_FEEDBACK);
 
     public String date;
     public Gson GSON;
