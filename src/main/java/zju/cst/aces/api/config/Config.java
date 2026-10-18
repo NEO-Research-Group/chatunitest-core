@@ -141,6 +141,7 @@ public class Config {
     public int stagnationCycles;
     public String mutators;
     public int pitTimeout;
+    public boolean keepPitWork;     // keep tmpOutput/<artifact>/mutation/<call> (classes, report and log) of each PIT call
     public String improvePromptType;
     public String improveFocalContext;
 
@@ -221,6 +222,7 @@ public class Config {
         public int stagnationCycles = 2;
         public String mutators = "STRONGER";
         public int pitTimeout = 600;
+        public boolean keepPitWork = false;
         public String improvePromptType = IMPROVE_MUTANTS;
         public String improveFocalContext = IMPROVE_CONTEXT_BODIES;
 
@@ -669,6 +671,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder keepPitWork(boolean keepPitWork) {
+            this.keepPitWork = keepPitWork;
+            return this;
+        }
+
         public ConfigBuilder improvePromptType(String improvePromptType) {
             this.improvePromptType = improvePromptType;
             return this;
@@ -823,6 +830,7 @@ public class Config {
             }
             config.setMutators(this.mutators.trim());
             config.setPitTimeout(this.pitTimeout);
+            config.setKeepPitWork(this.keepPitWork);
             if (!IMPROVE_PROMPT_TYPES.contains(this.improvePromptType)) {
                 throw new IllegalArgumentException("Unknown improvePromptType '" + this.improvePromptType + "'. Valid values: " + IMPROVE_PROMPT_TYPES);
             }
@@ -883,7 +891,8 @@ public class Config {
         logger.info(" Quality Improve >>>> " + this.isEnableQualityImprove());
         if (this.isEnableQualityImprove()) {
             logger.info(" - Prompt: " + this.getImprovePromptType() + ", focal context: " + this.getImproveFocalContext()
-                    + ", mutators: " + this.getMutators() + ", PIT timeout: " + this.getPitTimeout() + " s");
+                    + ", mutators: " + this.getMutators() + ", PIT timeout: " + this.getPitTimeout() + " s"
+                    + (this.isKeepPitWork() ? ", keeping PIT work dirs" : ""));
             logger.info(" - Cycles: " + this.getMaxQualityCycles() + ", repairs per cycle: " + this.getMaxRepairPerCycle()
                     + ", mutants per prompt: " + this.getMaxMutantsPerPrompt() + ", attempts per mutant: "
                     + this.getMaxMutantAttempts() + ", stagnation cycles: " + this.getStagnationCycles());

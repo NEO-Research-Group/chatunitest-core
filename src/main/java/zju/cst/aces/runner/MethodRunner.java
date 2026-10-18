@@ -391,6 +391,13 @@ public class MethodRunner extends ClassRunner {
         req.setMutators(config.getMutators());
         req.setProcessTimeoutSeconds(config.getPitTimeout());
         MutationResult r = new MutationAnalyzer().analyzeWithGreenPruning(req, MAX_GREEN_PRUNES, prunable);
+        if (!config.isKeepPitWork()) {
+            try {
+                MutationAnalyzer.deleteRecursively(req.getWorkDir());
+            } catch (IOException e) {
+                config.getLogger().warn("Cannot delete " + req.getWorkDir() + ": " + e);
+            }
+        }
         config.getLogger().info("PIT on " + tests.keySet() + ": " + r.getStatus() + ", " + r.getDetected() + "/"
                 + r.getTotal() + " detected, " + r.getSurvived() + " survived (" + r.getTotalMillis() + " ms)");
         if (r.getStatus() != MutationResult.Status.OK) {
