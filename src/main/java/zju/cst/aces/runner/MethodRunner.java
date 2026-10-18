@@ -89,20 +89,37 @@ public class MethodRunner extends ClassRunner {
         long startTime = System.nanoTime();
         // Phase 1: generation + repair (rounds 1..maxRounds-1), as ChatUniTest
         boolean success = generateAndRepair(phase, pc, false, config.getMaxRounds() - 1) == Outcome.PASSED;
+        exportRecord(pc.getPromptInfo(), classInfo, num);
 
-        // Phase 2: quality improvement, only from a green suite
-        Map<String, String> quality = null;
+        // Phase 2: quality improvement, only from a green suite. PIT on S0 once; with improvePromptType=both,
+        // the mutants and generic arms start from the same S0 (enfoque.md §5), one JSON entry per arm.
+        List<Map<String, String>> arms = new ArrayList<>();
         if (success && config.isEnableQualityImprove()) {
-            quality = new QualityCycle(phase, pc, num).run();
+            S0Baseline s0 = new S0Baseline(pc);
+            for (String arm : improveArms()) {
+                arms.add(new QualityLoop(phase, s0, arm, num).run());
+            }
         }
 
-        exportRecord(pc.getPromptInfo(), classInfo, num);
         if (config.generateJsonReport) {
             long endTime = System.nanoTime();
             float duration = (float) (endTime - startTime) / 1_000_000_000;
-            generateJsonReport(pc.getPromptInfo(), duration, success, quality);
+            if (arms.isEmpty()) {
+                generateJsonReport(pc.getPromptInfo(), duration, success, null);
+            }
+            for (Map<String, String> arm : arms) {
+                generateJsonReport(pc.getPromptInfo(), duration, success, arm);
+            }
         }
         return success;
+    }
+
+    /** Arms of the quality improvement: mutants, generic, or both from the same S0. */
+    List<String> improveArms() {
+        if (Config.IMPROVE_BOTH.equals(config.getImprovePromptType())) {
+            return Arrays.asList(Config.IMPROVE_MUTANTS, Config.IMPROVE_GENERIC);
+        }
+        return Collections.singletonList(config.getImprovePromptType());
     }
 
     public enum Outcome { PASSED, PARTIAL, FAILED }
@@ -135,136 +152,166 @@ public class MethodRunner extends ClassRunner {
     }
 
     /**
-     * One cycle of quality improvement (enfoque.md §3.1, N = 1; the loop of N cycles is S09b):
-     * PIT on S0 (green-run pruning of S0, §3.4) -> improvement class Q_1 with new tests -> validation and up to
-     * maxRepairPerCycle repairs -> PIT on S0 + Q_1 (pruning only Q_1) -> A_1 = S0 + Q_1, or Q_1 discarded.
-     * S0 is never changed by the improvement. Returns the fields for the JSON report.
+     * S0 before the quality improvement (enfoque.md §3.4): PIT on S0 and, if its green run fails, the failing tests
+     * of S0 are pruned (as make_s0.sh) and S0 is rewritten. Run once and shared by the arms.
      */
-    class QualityCycle {
+    class S0Baseline {
+        final PromptInfo info;
+        final String name;
+        final Path path;
+        String code;
+        MutationResult result;
+        int pitPruned;
+        String error;
+
+        S0Baseline(PromptConstructorImpl pc) {
+            info = pc.getPromptInfo();
+            name = pc.getFullTestName();
+            path = info.getTestPath();
+            try {
+                code = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+                result = pit(info, Collections.singletonMap(name, code), Collections.singleton(name));
+                pitPruned = prunedCount(result, name);
+                if (ok() && pitPruned > 0) {
+                    code = result.getFinalTests().get(name);
+                    exportTest(code, path);
+                }
+            } catch (Exception e) {
+                config.getLogger().warn("PIT on the S0 of < " + methodInfo.methodName + " > failed: " + e);
+                error = e.toString();
+            }
+        }
+
+        boolean ok() {
+            return error == null && result.getStatus() == MutationResult.Status.OK && result.getFinalTests() != null
+                    && result.getFinalTests().containsKey(name);
+        }
+    }
+
+    /**
+     * Quality improvement cycles of one arm (enfoque.md §3.1): from A_0 = S0, each cycle i asks for a new class
+     * X_<tag>i_Test with new tests (tag Q in mutants, G in generic), validates and repairs it up to
+     * maxRepairPerCycle rounds and runs PIT on A_{i-1} + Q_i, pruning only Q_i. If Q_i is valid, A_i = A_{i-1} + Q_i;
+     * if not, it is deleted and A_i = A_{i-1}. A discarded cycle counts. The PIT of A_i is the one the next cycle
+     * starts from. S0 and the previous classes are never changed. Returns the fields for the JSON report.
+     */
+    class QualityLoop {
         final Phase phase;
-        final PromptConstructorImpl s0pc;
+        final S0Baseline s0;
+        final String arm;
+        final String tag;
         final int num;
         final Map<String, String> out = new LinkedHashMap<>();
-        final MutationAnalyzer analyzer = new MutationAnalyzer();
-        long pitMillis = 0;
+        final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
+        final Map<String, String> suite = new LinkedHashMap<>();   // A_i: test class -> code
+        long pitMillis;
 
-        QualityCycle(Phase phase, PromptConstructorImpl s0pc, int num) {
+        QualityLoop(Phase phase, S0Baseline s0, String arm, int num) {
             this.phase = phase;
-            this.s0pc = s0pc;
+            this.s0 = s0;
+            this.arm = arm;
+            this.tag = Config.IMPROVE_GENERIC.equals(arm) ? "G" : "Q";
             this.num = num;
         }
 
         Map<String, String> run() {
             out.put("qualityEnabled", "true");
-            out.put("improvePromptType", config.getImprovePromptType());
+            out.put("improvePromptType", arm);
+            out.put("s0Shared", String.valueOf(Config.IMPROVE_BOTH.equals(config.getImprovePromptType())));
             out.put("improveFocalContext", config.getImproveFocalContext());
             out.put("mutators", config.getMutators());
             out.put("maxRepairPerCycle", String.valueOf(config.getMaxRepairPerCycle()));
+            out.put("maxQualityCycles", String.valueOf(config.getMaxQualityCycles()));
+            if (s0.error != null) {
+                out.put("qualityOutcome", "ERROR");
+                out.put("qualityError", s0.error);
+                return out;
+            }
+            putResult("s0", s0.result);
+            out.put("s0GreenPrunedTests", String.valueOf(s0.pitPruned));
             try {
-                cycle();
+                cycles();
             } catch (Exception e) {
-                config.getLogger().warn("Quality cycle of < " + methodInfo.methodName + " > failed: " + e);
-                out.put("q1Outcome", "ERROR");
+                config.getLogger().warn("Quality cycles of < " + methodInfo.methodName + " > (" + arm + ") failed: " + e);
+                out.put("qualityOutcome", "ERROR");
                 out.put("qualityError", e.toString());
             }
-            out.put("pitMillis", String.valueOf(pitMillis));
+            out.put("pitMillis", String.valueOf(pitMillis + s0.result.getTotalMillis()));
             return out;
         }
 
-        void cycle() throws IOException {
-            PromptInfo s0 = s0pc.getPromptInfo();
-            String s0Name = s0pc.getFullTestName();
-            Path s0Path = s0.getTestPath();
-            String s0Code = new String(Files.readAllBytes(s0Path), StandardCharsets.UTF_8);
-
-            // 1. PIT on S0; if its green run fails, prune the failing tests of S0 (as make_s0.sh)
-            Map<String, String> tests = new LinkedHashMap<>();
-            tests.put(s0Name, s0Code);
-            MutationResult r0 = pit(s0, tests, Collections.singleton(s0Name));
-            putResult("s0", r0);
-            out.put("s0GreenPrunedTests", String.valueOf(prunedCount(r0, s0Name)));
-            if (r0.getStatus() != MutationResult.Status.OK || r0.getFinalTests() == null
-                    || !r0.getFinalTests().containsKey(s0Name)) {
-                out.put("q1Outcome", "NO_CYCLE_" + r0.getStatus());
+        void cycles() throws IOException {
+            if (!s0.ok()) {
+                out.put("qualityOutcome", "NO_CYCLE_" + s0.result.getStatus());
                 return;
             }
-            if (prunedCount(r0, s0Name) > 0) {
-                s0Code = r0.getFinalTests().get(s0Name);
-                exportTest(s0Code, s0Path);
+            suite.put(s0.name, s0.code);
+            MutationResult prev = s0.result;
+            for (int i = 1; i <= config.getMaxQualityCycles(); i++) {
+                if (selector.candidates(prev).isEmpty()) {
+                    out.put("qualityOutcome", "NO_SURVIVED");
+                    out.put("cyclesRun", String.valueOf(i - 1));
+                    return;
+                }
+                prev = cycle(i, selector.select(prev), prev);
             }
+            out.put("qualityOutcome", "MAX_CYCLES");
+            out.put("cyclesRun", String.valueOf(config.getMaxQualityCycles()));
+        }
 
-            // 2. Stop if there are no surviving mutants (same rule in mutants and generic)
-            MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
-            List<Mutant> chosen = selector.select(r0);
-            if (chosen.isEmpty()) {
-                out.put("q1Outcome", "NO_SURVIVED");
-                return;
-            }
-
-            // 3. Improvement class Q_1, validated and repaired as S0
-            String qName = s0Name.substring(0, s0Name.length() - "_Test".length()) + "_Q1_Test";
+        /** Cycle i from A_{i-1} (PIT result prev); returns the PIT result of A_i. */
+        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev) throws IOException {
+            String p = "c" + i + "_";
+            String qName = s0.name.substring(0, s0.name.length() - "_Test".length()) + "_" + tag + i + "_Test";
             Path qPath = config.getTestOutput().resolve(qName.replace(".", File.separator) + ".java");
-            PromptInfo q = PromptInfo.forImprovement(s0, qName, qPath);
-            q.setImproveMode(config.getImprovePromptType());
-            q.setSuiteTests(s0Code);
+            PromptInfo q = PromptInfo.forImprovement(s0.info, qName, qPath);
+            q.setImproveMode(arm);
+            q.setSuiteTests(String.join("\n\n", suite.values()));
             q.setPruneFromRound(config.getMaxRepairPerCycle());
-            if (Config.IMPROVE_MUTANTS.equals(config.getImprovePromptType())) {
-                q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0)));
-                q.setImproveScore(MutantSelector.score(r0));
-                out.put("q1Mutants", chosen.stream().map(m -> m.id).collect(Collectors.joining(";")));
+            if (Config.IMPROVE_MUTANTS.equals(arm)) {
+                q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0.info)));
+                q.setImproveScore(MutantSelector.score(prev));
+                out.put(p + "mutants", chosen.stream().map(m -> m.id).collect(Collectors.joining(";")));
             }
             if (Config.IMPROVE_CONTEXT_FCE.equals(config.getImproveFocalContext())) {
                 q.setImproveFce(classInfo.getCompilationUnitCode());
             } else {
-                q.setPrivateBodies(privateBodies(s0));
+                q.setPrivateBodies(privateBodies(s0.info));
             }
             PromptConstructorImpl qpc = new PromptConstructorImpl(config);
             qpc.setPromptInfo(q);
             qpc.setFullTestName(qName);
             Outcome qo = generateAndRepair(phase, qpc, true, config.getMaxRepairPerCycle());
-            putImprovementStats(q, qo);
-            exportRecord(s0, q.getRecords(), classInfo, num, "records_Q1.json");
+            putImprovementStats(p, q, qo);
+            exportRecord(s0.info, q.getRecords(), classInfo, num, "records_" + tag + i + ".json");
             if (qo == Outcome.FAILED) {
                 Files.deleteIfExists(qPath);
-                out.put("q1Outcome", "DISCARDED_RED");
-                return;
+                out.put(p + "outcome", "DISCARDED_RED");
+                return prev;
             }
 
-            // 4. PIT on A_1 = S0 + Q_1; a failing green run can only prune tests of Q_1
-            String qCode = new String(Files.readAllBytes(qPath), StandardCharsets.UTF_8);
-            tests = new LinkedHashMap<>();
-            tests.put(s0Name, s0Code);
-            tests.put(qName, qCode);
-            MutationResult r1 = pit(s0, tests, Collections.singleton(qName));
-            putResult("a1", r1);
-            out.put("q1GreenPrunedTests", String.valueOf(prunedCount(r1, qName)));
-            if (r1.getStatus() != MutationResult.Status.OK || r1.getFinalTests() == null
-                    || !r1.getFinalTests().containsKey(qName)) {
-                Files.deleteIfExists(qPath);
-                out.put("q1Outcome", "DISCARDED_PIT_" + r1.getStatus());
-                return;
-            }
-            if (prunedCount(r1, qName) > 0) {
-                exportTest(r1.getFinalTests().get(qName), qPath);
-            }
-            Set<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
-            long killedChosen = r1.getMutants().stream().filter(m -> m.detected && chosenIds.contains(m.id)).count();
-            out.put("q1KilledChosen", String.valueOf(killedChosen));
-            out.put("q1Outcome", qo == Outcome.PARTIAL ? "VALID_PARTIAL"
-                    : "PASSED_AFTER_PRUNE".equals(q.getValidationOutcome()) ? "VALID_PRUNED" : "VALID_PASSED");
-        }
-
-        MutationResult pit(PromptInfo s0, Map<String, String> tests, Set<String> prunable) {
-            MutationRequest req = MutationRequest.from(config, s0, tests);
-            req.setMutators(config.getMutators());
-            req.setProcessTimeoutSeconds(config.getPitTimeout());
-            MutationResult r = analyzer.analyzeWithGreenPruning(req, MAX_GREEN_PRUNES, prunable);
+            // PIT on A_i = A_{i-1} + Q_i; a failing green run can only prune tests of Q_i
+            Map<String, String> tests = new LinkedHashMap<>(suite);
+            tests.put(qName, new String(Files.readAllBytes(qPath), StandardCharsets.UTF_8));
+            MutationResult r = pit(s0.info, tests, Collections.singleton(qName));
             pitMillis += r.getTotalMillis();
-            config.getLogger().info("PIT on " + tests.keySet() + ": " + r.getStatus() + ", " + r.getDetected() + "/"
-                    + r.getTotal() + " detected, " + r.getSurvived() + " survived (" + r.getTotalMillis() + " ms)");
-            if (r.getStatus() != MutationResult.Status.OK) {
-                config.getLogger().warn("PIT log tail:\n" + r.getLogTail() + "\n" + String.join("\n", r.getCompileErrors()));
+            putResult(p + "a", r);
+            out.put(p + "greenPrunedTests", String.valueOf(prunedCount(r, qName)));
+            if (r.getStatus() != MutationResult.Status.OK || r.getFinalTests() == null
+                    || !r.getFinalTests().containsKey(qName)) {
+                Files.deleteIfExists(qPath);
+                out.put(p + "outcome", "DISCARDED_PIT_" + r.getStatus());
+                return prev;
             }
+            if (prunedCount(r, qName) > 0) {
+                exportTest(r.getFinalTests().get(qName), qPath);
+            }
+            suite.put(qName, r.getFinalTests().get(qName));
+            Set<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
+            long killedChosen = r.getMutants().stream().filter(m -> m.detected && chosenIds.contains(m.id)).count();
+            out.put(p + "killedChosen", String.valueOf(killedChosen));
+            out.put(p + "outcome", qo == Outcome.PARTIAL ? "VALID_PARTIAL"
+                    : "PASSED_AFTER_PRUNE".equals(q.getValidationOutcome()) ? "VALID_PRUNED" : "VALID_PASSED");
             return r;
         }
 
@@ -278,7 +325,7 @@ public class MethodRunner extends ClassRunner {
             out.put(prefix + "TS", String.valueOf(r.getTs()));
         }
 
-        void putImprovementStats(PromptInfo q, Outcome qo) {
+        void putImprovementStats(String p, PromptInfo q, Outcome qo) {
             int improveIn = 0, improveOut = 0, repairIn = 0, repairOut = 0;
             for (RoundRecord r : q.getRecords()) {
                 int in = r.getPromptToken() + r.getDiscardedPromptToken();
@@ -291,23 +338,37 @@ public class MethodRunner extends ClassRunner {
                     repairOut += o;
                 }
             }
-            out.put("q1Validation", qo + "/" + q.getValidationOutcome());
-            out.put("q1Rounds", String.valueOf(q.getRecords().size() - 1));
-            out.put("q1InRoundRestarts", String.valueOf(q.getInRoundRestarts()));
-            out.put("q1StagnantRounds", String.valueOf(q.getStagnantRounds()));
-            out.put("q1TestsExported", String.valueOf(q.getTestsExported()));
-            out.put("q1TestsPruned", String.valueOf(q.getTestsPruned()));
-            out.put("q1TruncatedResponses", String.valueOf(q.countTruncatedResponses(config.getMaxResponseTokens())));
-            out.put("improveInputTokens", String.valueOf(improveIn));
-            out.put("improveOutputTokens", String.valueOf(improveOut));
-            out.put("improveRepairInputTokens", String.valueOf(repairIn));
-            out.put("improveRepairOutputTokens", String.valueOf(repairOut));
+            out.put(p + "validation", qo + "/" + q.getValidationOutcome());
+            out.put(p + "rounds", String.valueOf(q.getRecords().size() - 1));
+            out.put(p + "inRoundRestarts", String.valueOf(q.getInRoundRestarts()));
+            out.put(p + "stagnantRounds", String.valueOf(q.getStagnantRounds()));
+            out.put(p + "testsExported", String.valueOf(q.getTestsExported()));
+            out.put(p + "testsPruned", String.valueOf(q.getTestsPruned()));
+            out.put(p + "truncatedResponses", String.valueOf(q.countTruncatedResponses(config.getMaxResponseTokens())));
+            out.put(p + "improveInputTokens", String.valueOf(improveIn));
+            out.put(p + "improveOutputTokens", String.valueOf(improveOut));
+            out.put(p + "repairInputTokens", String.valueOf(repairIn));
+            out.put(p + "repairOutputTokens", String.valueOf(repairOut));
         }
+    }
 
-        int prunedCount(MutationResult r, String testClass) {
-            Set<String> pruned = r.getPrunedTests() == null ? null : r.getPrunedTests().get(testClass);
-            return pruned == null ? 0 : pruned.size();
+    /** PIT on the given test classes (FQN -> code), pruning failing tests of the prunable classes only. */
+    MutationResult pit(PromptInfo s0, Map<String, String> tests, Set<String> prunable) {
+        MutationRequest req = MutationRequest.from(config, s0, tests);
+        req.setMutators(config.getMutators());
+        req.setProcessTimeoutSeconds(config.getPitTimeout());
+        MutationResult r = new MutationAnalyzer().analyzeWithGreenPruning(req, MAX_GREEN_PRUNES, prunable);
+        config.getLogger().info("PIT on " + tests.keySet() + ": " + r.getStatus() + ", " + r.getDetected() + "/"
+                + r.getTotal() + " detected, " + r.getSurvived() + " survived (" + r.getTotalMillis() + " ms)");
+        if (r.getStatus() != MutationResult.Status.OK) {
+            config.getLogger().warn("PIT log tail:\n" + r.getLogTail() + "\n" + String.join("\n", r.getCompileErrors()));
         }
+        return r;
+    }
+
+    static int prunedCount(MutationResult r, String testClass) {
+        Set<String> pruned = r.getPrunedTests() == null ? null : r.getPrunedTests().get(testClass);
+        return pruned == null ? 0 : pruned.size();
     }
 
     /** Lines of the source file of the focal class (PIT's line numbers), or null if it is not found. */

@@ -55,7 +55,8 @@ public class Config {
     /** Prompt of the quality improvement (phase 2): surviving mutants, or the generic control without them. */
     public static final String IMPROVE_MUTANTS = "mutants";
     public static final String IMPROVE_GENERIC = "generic";
-    public static final List<String> IMPROVE_PROMPT_TYPES = Arrays.asList(IMPROVE_MUTANTS, IMPROVE_GENERIC);
+    public static final String IMPROVE_BOTH = "both";   // mutants and generic arms from the same S0 (enfoque.md §5)
+    public static final List<String> IMPROVE_PROMPT_TYPES = Arrays.asList(IMPROVE_MUTANTS, IMPROVE_GENERIC, IMPROVE_BOTH);
     /** Extra focal-class context of the improvement prompt: bodies of the private methods, or the whole class. */
     public static final String IMPROVE_CONTEXT_BODIES = "bodies";
     public static final String IMPROVE_CONTEXT_FCE = "fce";
