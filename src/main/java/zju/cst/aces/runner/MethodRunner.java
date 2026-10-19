@@ -331,6 +331,10 @@ public class MethodRunner extends ClassRunner {
         MutationResult cycle(int i, List<MutantSelector.Target> targets, MutationResult prev, Map<String, Object> c)
                 throws IOException {
             List<Mutant> chosen = targets.stream().flatMap(t -> t.mutants.stream()).collect(Collectors.toList());
+            String suiteCode = String.join("\n\n", suite.values());
+            if (Config.IMPROVE_MUTANTS.equals(arm)) {
+                MutantSelector.setHints(targets, suiteCode);
+            }
             List<Map<String, Object>> targetMaps = targets.stream().map(MutantSelector.Target::toMap)
                     .collect(Collectors.toList());
             String qName = s0.name.substring(0, s0.name.length() - "_Test".length()) + "_" + tag + i + "_Test";
@@ -339,7 +343,7 @@ public class MethodRunner extends ClassRunner {
             c.put("testClass", qName);
             PromptInfo q = PromptInfo.forImprovement(s0.info, qName, qPath);
             q.setImproveMode(arm);
-            q.setSuiteTests(String.join("\n\n", suite.values()));
+            q.setSuiteTests(suiteCode);
             q.setPruneFromRound(config.getMaxRepairPerCycle());
             // A list: the ids contain the JVM descriptor of the method, with ';'
             List<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toList());

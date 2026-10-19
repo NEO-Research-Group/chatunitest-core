@@ -1,6 +1,8 @@
 package zju.cst.aces.mutation;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -16,6 +18,16 @@ public class MutantSelector {
     public static final String SURVIVED = "SURVIVED";
     public static final String NC_BLOCK = "NC_BLOCK";
     static final int BLOCK_EXAMPLES = 2;
+    public static final String HINT_VERIFY = "VERIFY";
+    public static final String HINT_RETURN = "RETURN";
+    static final List<String> CALL_MUTATORS = Arrays.asList("VoidMethodCallMutator", "NonVoidMethodCallMutator",
+            "ConstructorCallMutator", "ArgumentPropagationMutator", "NakedReceiverMutator");
+    static final Pattern OWNER = Pattern.compile("([\\w/$]+)::");
+    static final Map<String, String> HINT_TEXT = new LinkedHashMap<>();
+    static {
+        HINT_TEXT.put(HINT_VERIFY, "Hint: check this interaction with `verify` or capture its argument with `ArgumentCaptor`.");
+        HINT_TEXT.put(HINT_RETURN, "Hint: use an input at the boundary and check the returned value or the exception (type and message).");
+    }
 
     /** A SURVIVED mutant, or a block of lines from-to that no test executes (its NO_COVERAGE mutants). */
     public static class Target {
@@ -23,6 +35,7 @@ public class MutantSelector {
         public final List<Mutant> mutants;
         public final int from;
         public final int to;
+        public String hint;   // HINT_VERIFY | HINT_RETURN for a SURVIVED target shown in the prompt; null otherwise
 
         Target(String type, List<Mutant> mutants) {
             this.type = type;
@@ -45,6 +58,9 @@ public class MutantSelector {
             m.put("type", type);
             m.put("lines", lines());
             m.put("mutants", ids());
+            if (hint != null) {
+                m.put("hint", hint);
+            }
             return m;
         }
     }
@@ -153,11 +169,58 @@ public class MutantSelector {
         return String.format("- line %d: `%s` -> %s (%s)", m.line, code(m.line, sourceLines), m.description, m.mutatorShort);
     }
 
-    /** The SURVIVED targets, one per line. */
+    /** The SURVIVED targets, one per line, followed by their hint if it is set (setHints). */
     public static String formatSurvived(List<Target> targets, List<String> sourceLines) {
         return targets.stream().filter(t -> SURVIVED.equals(t.type))
-                .map(t -> format(t.mutants.get(0), sourceLines))
+                .map(t -> format(t.mutants.get(0), sourceLines) + (t.hint == null ? "" : " " + HINT_TEXT.get(t.hint)))
                 .collect(Collectors.joining("\n"));
+    }
+
+    /** Sets the oracle hint of each SURVIVED target (hint()), given the suite the cycle starts from. */
+    public static void setHints(List<Target> targets, String suiteCode) {
+        for (Target t : targets) {
+            if (SURVIVED.equals(t.type)) {
+                t.hint = hint(t.mutants.get(0), suiteCode);
+            }
+        }
+    }
+
+    /**
+     * Oracle hint from the mutator (E2): a call mutator on a dependency that the suite mocks gets VERIFY (check the
+     * interaction or capture its argument); any other mutant gets RETURN (an input at the boundary, check the result
+     * or the exception). The owner of the call comes from PIT's description ("call to a/b/C::m"); it is a mocked
+     * dependency if it is not the focal class nor a JDK class (java/, javax/) and the suite has @Mock or @MockBean
+     * fields of its type, or mock(C.class) or mockStatic(C.class).
+     */
+    public static String hint(Mutant m, String suiteCode) {
+        if (m.mutatorShort == null || CALL_MUTATORS.stream().noneMatch(m.mutatorShort::startsWith)) {
+            return HINT_RETURN;
+        }
+        Matcher om = m.description == null ? null : OWNER.matcher(m.description);
+        if (om == null || !om.find()) {
+            return HINT_RETURN;
+        }
+        String owner = om.group(1);
+        String dotted = owner.replace('/', '.');
+        String focal = m.mutatedClass == null ? "" : m.mutatedClass;
+        String focalTop = focal.contains("$") ? focal.substring(0, focal.indexOf('$')) : focal;
+        if (owner.startsWith("java/") || owner.startsWith("javax/") || dotted.equals(focal)
+                || dotted.equals(focalTop) || dotted.startsWith(focalTop + "$")) {
+            return HINT_RETURN;
+        }
+        String simple = owner.substring(Math.max(owner.lastIndexOf('/'), owner.lastIndexOf('$')) + 1);
+        return isMocked(simple, suiteCode) ? HINT_VERIFY : HINT_RETURN;
+    }
+
+    static boolean isMocked(String simpleName, String code) {
+        if (code == null || simpleName.isEmpty()) {
+            return false;
+        }
+        String n = Pattern.quote(simpleName);
+        Pattern field = Pattern.compile("@(?:Mock|MockBean)\\b(?:\\([^)]*\\))?\\s+(?:(?:private|protected|public|static|final)\\s+)*"
+                + "(?:[\\w.]+\\.)?" + n + "\\b");
+        Pattern call = Pattern.compile("\\b(?:mock|mockStatic)\\s*\\(\\s*(?:[\\w.]+\\.)?" + n + "\\.class\\b");
+        return field.matcher(code).find() || call.matcher(code).find();
     }
 
     /**
