@@ -28,4 +28,5 @@ public class Mutant {
     public boolean detected;
     public List<String> killingTests = new ArrayList<>();   // TestClass#method (fullMutationMatrix)
     public int coveringCount;       // tests that cover it: killing + succeeding
+    public List<String> succeedingTests = new ArrayList<>();   // tests that execute it and still pass (TestClass#method)
 }

@@ -410,6 +410,9 @@ public class MutationAnalyzer {
         covering.addAll(testNames(text(u, "succeedingTests")));
         covering.addAll(testNames(text(u, "coveringTests")));
         m.coveringCount = covering.size();
+        Set<String> succeeding = new LinkedHashSet<>(covering);
+        succeeding.removeAll(m.killingTests);
+        m.succeedingTests = new ArrayList<>(succeeding);
         m.id = String.join("|", m.mutatedClass, m.mutatedMethod, m.methodDescription, String.valueOf(m.line),
                 m.mutator, m.indexes);
         return m;
