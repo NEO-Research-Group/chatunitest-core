@@ -144,6 +144,7 @@ public class Config {
     public boolean keepPitWork;     // keep tmpOutput/<artifact>/mutation/<call> (classes, report and log) of each PIT call
     public String improvePromptType;
     public String improveFocalContext;
+    public double improveTemperature;           // temperature of the improvement call (round 0 of Q_i); < 0 = temperature
     public String excludedMutants;              // file with the ids of the mutants that are not targets (e.g. equivalent)
     public Set<String> excludedMutantIds = new HashSet<>();
 
@@ -228,6 +229,7 @@ public class Config {
         public String improvePromptType = IMPROVE_MUTANTS;
         public String improveFocalContext = IMPROVE_CONTEXT_BODIES;
         public String excludedMutants = "";
+        public double improveTemperature = -1;
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -689,6 +691,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder improveTemperature(double improveTemperature) {
+            this.improveTemperature = improveTemperature;
+            return this;
+        }
+
         public ConfigBuilder excludedMutants(String excludedMutants) {
             this.excludedMutants = excludedMutants;
             return this;
@@ -847,6 +854,7 @@ public class Config {
                 throw new IllegalArgumentException("Unknown improveFocalContext '" + this.improveFocalContext + "'. Valid values: " + IMPROVE_FOCAL_CONTEXTS);
             }
             config.setImproveFocalContext(this.improveFocalContext);
+            config.setImproveTemperature(this.improveTemperature);
             config.setExcludedMutants(this.excludedMutants == null ? "" : this.excludedMutants.trim());
             config.setExcludedMutantIds(readExcludedMutants(config.getExcludedMutants()));
             return config;

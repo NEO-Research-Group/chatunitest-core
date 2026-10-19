@@ -264,6 +264,8 @@ public class MethodRunner extends ClassRunner {
             out.put("maxMutantAttempts", String.valueOf(config.getMaxMutantAttempts()));
             out.put("stagnationCycles", String.valueOf(config.getStagnationCycles()));
             out.put("excludedMutants", String.valueOf(config.getExcludedMutantIds().size()));
+            out.put("improveTemperature", String.valueOf(config.getImproveTemperature() >= 0
+                    ? config.getImproveTemperature() : config.getTemperature()));
             putS0();
             if (s0.error != null) {
                 stop("ERROR", 0);

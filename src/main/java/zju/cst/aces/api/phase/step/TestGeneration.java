@@ -17,6 +17,7 @@ public class TestGeneration {
     protected final Config config;
     protected PromptGenerator promptGenerator;
     protected MethodInfo methodInfo;
+    protected boolean improveCall;   // round 0 of an improvement class Q_i: Config.improveTemperature applies
 
     public TestGeneration(Config config) {
         this.config = config;
@@ -75,7 +76,9 @@ public class TestGeneration {
                     prompt = withStagnationNote(prompt);
                 }
             }
+            improveCall = rounds == 0 && promptInfo.getImproveMode() != null;
             code = generateTest(prompt, record);
+            improveCall = false;
             if (rounds >= 1 && promptInfo.getImproveMode() != null && record.isHasCode()
                     && sameCode(code, promptInfo.getUnitTest())) {
                 // Improvement repair: the response returns the input test unchanged. Ask again in the same round
@@ -184,6 +187,9 @@ public class TestGeneration {
         if (record.isStagnant() && (Config.STAGNATION_TEMPERATURE.equals(config.getStagnationStrategy())
                 || Config.STAGNATION_RESTART.equals(config.getStagnationStrategy()))) {
             response = ChatGenerator.chat(config, prompt, config.getStagnationTemperature(), true);
+        } else if (improveCall && config.getImproveTemperature() >= 0) {
+            // Variety between cycles (E2): the same improvement prompt at T = 0 returns the same class
+            response = ChatGenerator.chat(config, prompt, config.getImproveTemperature(), true);
         } else {
             response = ChatGenerator.chat(config, prompt);
         }
