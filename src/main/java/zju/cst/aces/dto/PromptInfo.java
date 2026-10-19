@@ -71,6 +71,10 @@ public class PromptInfo {
     // First round in which the failing tests are pruned (Config.enablePrune). 0 in S0 (as ChatUniTest); the last
     // repair round in Q_i, so that its failing tests are repaired first and pruned only at the end (enfoque.md §3.1).
     public int pruneFromRound = 0;
+    // Normalized bodies of the tests of A_{i-1} (TestProcessor.testBodies): the tests of Q_i with one of these bodies
+    // are removed (E2); null in S0. testsDuplicated counts them.
+    public Set<String> duplicateBodies;
+    public int testsDuplicated = 0;
 
 
     /**

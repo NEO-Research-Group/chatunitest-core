@@ -123,18 +123,26 @@ public class MethodRunner extends ClassRunner {
         return Collections.singletonList(config.getImprovePromptType());
     }
 
-    public enum Outcome { PASSED, PARTIAL, FAILED }
+    public enum Outcome { PASSED, PARTIAL, FAILED, DUPLICATE }
 
     /**
      * Round 0 (generation, or improvement if improve) + validation, and repair + validation up to lastRound.
      * If every round fails, the tests that passed in some round are validated on their own (PARTIAL_CORRECT_TESTS).
-     * Used for S0 and for each improvement class Q_i, so that both are repaired in the same way.
+     * Used for S0 and for each improvement class Q_i, so that both are repaired in the same way. In Q_i, the tests
+     * that repeat a test of A_{i-1} are removed before validating round 0; if none is left, DUPLICATE (no repair).
      */
     public Outcome generateAndRepair(Phase phase, PromptConstructorImpl pc, boolean improve, int lastRound) {
         PromptInfo promptInfo = pc.getPromptInfo();
         promptInfo.setRound(0);
         if (improve) {
             phase.improveTest(pc);
+            if (!promptInfo.getUnitTest().isEmpty()) {
+                String dedup = removeDuplicates(promptInfo, pc.getFullTestName(), promptInfo.getUnitTest());
+                if (dedup == null) {
+                    return Outcome.DUPLICATE;
+                }
+                promptInfo.setUnitTest(dedup);
+            }
         } else {
             phase.generateTest(pc);
         }
@@ -150,6 +158,30 @@ public class MethodRunner extends ClassRunner {
         }
         // All the rounds failed: keep the tests that passed in some round, if they still pass on their own
         return validateGreenCandidate(config, pc.getFullTestName(), promptInfo) ? Outcome.PARTIAL : Outcome.FAILED;
+    }
+
+    /**
+     * Removes from code the tests whose normalized body (TestProcessor.testBodies, as norm_body of
+     * scripts/eval_cycles.py) is that of a test of A_{i-1} (promptInfo.duplicateBodies), and counts them in
+     * promptInfo.testsDuplicated. Returns code if nothing is removed (or it cannot be parsed), null if no test is left.
+     */
+    String removeDuplicates(PromptInfo promptInfo, String testName, String code) {
+        if (promptInfo.getDuplicateBodies() == null) {
+            return code;
+        }
+        TestProcessor tp = new TestProcessor(testName);
+        Map<String, String> bodies = tp.testBodies(code);
+        if (bodies == null) {
+            return code;
+        }
+        Set<String> dup = bodies.entrySet().stream().filter(e -> promptInfo.getDuplicateBodies().contains(e.getValue()))
+                .map(Map.Entry::getKey).collect(Collectors.toCollection(LinkedHashSet::new));
+        if (dup.isEmpty()) {
+            return code;
+        }
+        promptInfo.setTestsDuplicated(promptInfo.getTestsDuplicated() + dup.size());
+        config.getLogger().info("Removed " + dup.size() + " tests of < " + testName + " > that repeat a test of the suite: " + dup);
+        return dup.size() == bodies.size() ? null : tp.removeTestsByName(code, dup);
     }
 
     /**
@@ -345,6 +377,14 @@ public class MethodRunner extends ClassRunner {
             q.setImproveMode(arm);
             q.setSuiteTests(suiteCode);
             q.setPruneFromRound(config.getMaxRepairPerCycle());
+            Set<String> suiteBodies = new HashSet<>();
+            for (Map.Entry<String, String> e : suite.entrySet()) {
+                Map<String, String> b = new TestProcessor(e.getKey()).testBodies(e.getValue());
+                if (b != null) {
+                    suiteBodies.addAll(b.values());
+                }
+            }
+            q.setDuplicateBodies(suiteBodies);
             // A list: the ids contain the JVM descriptor of the method, with ';'
             List<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toList());
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
@@ -369,15 +409,28 @@ public class MethodRunner extends ClassRunner {
             Outcome qo = generateAndRepair(phase, qpc, true, config.getMaxRepairPerCycle());
             putImprovementStats(c, q, qo);
             exportRecord(s0.info, q.getRecords(), classInfo, num, "records_" + tag + i + ".json");
-            if (qo == Outcome.FAILED) {
+            if (qo == Outcome.FAILED || qo == Outcome.DUPLICATE) {
+                c.put("qTestsDuplicated", String.valueOf(q.getTestsDuplicated()));
                 Files.deleteIfExists(qPath);
-                discard(c, "DISCARDED_RED");
+                discard(c, qo == Outcome.FAILED ? "DISCARDED_RED" : "DISCARDED_DUPLICATE");
                 return prev;
+            }
+            // The repair may bring back a test of A_{i-1}: remove the repeated tests again before PIT
+            String qGreen = new String(Files.readAllBytes(qPath), StandardCharsets.UTF_8);
+            String qDedup = removeDuplicates(q, qName, qGreen);
+            c.put("qTestsDuplicated", String.valueOf(q.getTestsDuplicated()));
+            if (qDedup == null) {
+                Files.deleteIfExists(qPath);
+                discard(c, "DISCARDED_DUPLICATE");
+                return prev;
+            }
+            if (!qDedup.equals(qGreen)) {
+                exportTest(qDedup, qPath);
             }
 
             // PIT on A_i = A_{i-1} + Q_i; a failing green run can only prune tests of Q_i
             Map<String, String> tests = new LinkedHashMap<>(suite);
-            tests.put(qName, new String(Files.readAllBytes(qPath), StandardCharsets.UTF_8));
+            tests.put(qName, qDedup);
             MutationResult r = pit(s0.info, tests, Collections.singleton(qName));
             pitMillis += r.getTotalMillis();
             c.put("pitStatus", String.valueOf(r.getStatus()));
