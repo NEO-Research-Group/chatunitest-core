@@ -204,7 +204,8 @@ public class MethodRunner extends ClassRunner {
         final int num;
         final Map<String, Object> out = new LinkedHashMap<>();
         final List<Map<String, Object>> cycles = new ArrayList<>();
-        final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts());
+        final MutantSelector selector = new MutantSelector(config.getMaxMutantsPerPrompt(), config.getMaxMutantAttempts(),
+                config.getExcludedMutantIds());
         final Map<String, String> suite = new LinkedHashMap<>();   // A_i: test class -> code
         long pitMillis;
         int current;   // cycle in progress
@@ -230,6 +231,7 @@ public class MethodRunner extends ClassRunner {
             out.put("maxMutantsPerPrompt", String.valueOf(config.getMaxMutantsPerPrompt()));
             out.put("maxMutantAttempts", String.valueOf(config.getMaxMutantAttempts()));
             out.put("stagnationCycles", String.valueOf(config.getStagnationCycles()));
+            out.put("excludedMutants", String.valueOf(config.getExcludedMutantIds().size()));
             putS0();
             if (s0.error != null) {
                 stop("ERROR", 0);
@@ -269,15 +271,17 @@ public class MethodRunner extends ClassRunner {
                 out.put("s0_pitTime", String.valueOf(s0.result.getTotalMillis()));
                 Map<String, String> m = new LinkedHashMap<>();
                 putMutation(m, s0.result);
+                putMutationNoExcluded(m, s0.result);
                 m.forEach((k, v) -> out.put("s0_" + k, v));
             }
         }
 
         /**
-         * Stops at the first of (enfoque.md §3.3): N cycles done (MAX_CYCLES); no SURVIVED mutant left
-         * (NO_SURVIVED) or only excluded ones (ALL_EXHAUSTED); stagnationCycles cycles in a row without killing
-         * any new mutant (STAGNATION). The generic arm rotates and counts the attempts in the same way, without
-         * showing the mutants, so that both arms stop by the same rule.
+         * Stops at the first of (enfoque.md §3.3): N cycles done (MAX_CYCLES); no target left, that is, no SURVIVED
+         * or NO_COVERAGE mutant that is not excluded (NO_TARGETS, NO_SURVIVED before E2); only targets tried
+         * maxMutantAttempts times (ALL_EXHAUSTED); stagnationCycles cycles in a row without killing any new mutant
+         * (STAGNATION). The generic arm selects and counts the attempts in the same way, without showing the
+         * targets, so that both arms stop by the same rule.
          */
         void cycles() throws IOException {
             if (!s0.ok()) {
@@ -289,8 +293,8 @@ public class MethodRunner extends ClassRunner {
             int withoutKills = 0;
             for (int i = 1; i <= config.getMaxQualityCycles(); i++) {
                 current = i;
-                if (prev.getSurvived() == 0) {
-                    stop("NO_SURVIVED", i - 1);
+                if (!selector.hasTargets(prev)) {
+                    stop("NO_TARGETS", i - 1);
                     return;
                 }
                 if (selector.candidates(prev).isEmpty()) {
@@ -324,7 +328,11 @@ public class MethodRunner extends ClassRunner {
         }
 
         /** Cycle i from A_{i-1} (PIT result prev), recorded in c; returns the PIT result of A_i. */
-        MutationResult cycle(int i, List<Mutant> chosen, MutationResult prev, Map<String, Object> c) throws IOException {
+        MutationResult cycle(int i, List<MutantSelector.Target> targets, MutationResult prev, Map<String, Object> c)
+                throws IOException {
+            List<Mutant> chosen = targets.stream().flatMap(t -> t.mutants.stream()).collect(Collectors.toList());
+            List<Map<String, Object>> targetMaps = targets.stream().map(MutantSelector.Target::toMap)
+                    .collect(Collectors.toList());
             String qName = s0.name.substring(0, s0.name.length() - "_Test".length()) + "_" + tag + i + "_Test";
             Path qPath = config.getTestOutput().resolve(qName.replace(".", File.separator) + ".java");
             c.put("cycle", String.valueOf(i));
@@ -336,11 +344,15 @@ public class MethodRunner extends ClassRunner {
             // A list: the ids contain the JVM descriptor of the method, with ';'
             List<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toList());
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
-                q.setImproveMutants(MutantSelector.format(chosen, focalSourceLines(s0.info)));
-                q.setImproveScore(MutantSelector.score(prev));
+                List<String> lines = focalSourceLines(s0.info);
+                q.setImproveMutants(MutantSelector.formatSurvived(targets, lines));
+                q.setImproveMutantsNc(MutantSelector.formatBlocks(targets, lines));
+                q.setImproveScore(MutantSelector.score(prev, config.getExcludedMutantIds()));
+                c.put("shownTargets", targetMaps);
                 c.put("shownMutants", chosenIds);
             } else {
-                c.put("hiddenMutants", chosenIds);   // chosen and counted as attempts, not in the prompt
+                c.put("hiddenTargets", targetMaps);  // chosen and counted as attempts, not in the prompt
+                c.put("hiddenMutants", chosenIds);
             }
             if (Config.IMPROVE_CONTEXT_FCE.equals(config.getImproveFocalContext())) {
                 q.setImproveFce(classInfo.getCompilationUnitCode());
@@ -385,8 +397,12 @@ public class MethodRunner extends ClassRunner {
             c.put("qTests", String.valueOf(tp.countTestCases(qCode)));
             c.put("qAsserts", String.valueOf(tp.countAssertions(qCode)));
             Set<String> chosenSet = chosen.stream().map(m -> m.id).collect(Collectors.toSet());
+            Set<String> chosenNc = targets.stream().filter(t -> MutantSelector.NC_BLOCK.equals(t.type))
+                    .flatMap(t -> t.mutants.stream()).map(m -> m.id).collect(Collectors.toSet());
             c.put("killedChosen", String.valueOf(r.getMutants().stream()
                     .filter(m -> m.detected && chosenSet.contains(m.id)).count()));
+            c.put("killedChosenNc", String.valueOf(r.getMutants().stream()
+                    .filter(m -> m.detected && chosenNc.contains(m.id)).count()));
             return r;
         }
 
@@ -399,6 +415,7 @@ public class MethodRunner extends ClassRunner {
             c.put("qTests", "0");
             c.put("qAsserts", "0");
             c.put("killedChosen", "0");
+            c.put("killedChosenNc", "0");
         }
 
         /** The accumulated suite A_i and its PIT result (A_{i-1} if the cycle was discarded). */
@@ -413,6 +430,7 @@ public class MethodRunner extends ClassRunner {
             c.put("tests", String.valueOf(tests));
             c.put("asserts", String.valueOf(asserts));
             putMutation(c, r);
+            putMutationNoExcluded(c, r);
         }
 
         void putImprovementStats(Map<String, Object> c, PromptInfo q, Outcome qo) {
@@ -453,6 +471,13 @@ public class MethodRunner extends ClassRunner {
         m.put("noCoverage", String.valueOf(r.getNoCoverage()));
         m.put("ms", String.valueOf(r.getMs()));
         m.put("ts", String.valueOf(r.getTs()));
+    }
+
+    /** The same counts without the excluded mutants (excludedMutants), with the suffix NoEq; nothing if none. */
+    void putMutationNoExcluded(Map<String, ? super String> m, MutationResult r) {
+        if (!config.getExcludedMutantIds().isEmpty()) {
+            MutantSelector.countsWithout(r, config.getExcludedMutantIds()).forEach((k, v) -> m.put(k + "NoEq", v));
+        }
     }
 
     static int reasoningTokens(List<RoundRecord> records) {

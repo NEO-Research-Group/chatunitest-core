@@ -63,6 +63,7 @@ public class PromptInfo {
     public String improveMode;
     public String suiteTests;        // the accumulated green suite, as context (not to repeat its tests)
     public String improveMutants;    // surviving mutants, one per line (mutants mode)
+    public String improveMutantsNc;  // blocks of lines that no test executes, with example mutants (mutants mode)
     public String improveScore;      // mutation score of the suite, as a sentence (mutants mode)
     public String privateBodies;     // bodies of the private methods of the focal class called by the focal method
     public String improveFce;        // whole focal class (improveFocalContext = fce)

@@ -144,6 +144,8 @@ public class Config {
     public boolean keepPitWork;     // keep tmpOutput/<artifact>/mutation/<call> (classes, report and log) of each PIT call
     public String improvePromptType;
     public String improveFocalContext;
+    public String excludedMutants;              // file with the ids of the mutants that are not targets (e.g. equivalent)
+    public Set<String> excludedMutantIds = new HashSet<>();
 
     @Getter
     @Setter
@@ -225,6 +227,7 @@ public class Config {
         public boolean keepPitWork = false;
         public String improvePromptType = IMPROVE_MUTANTS;
         public String improveFocalContext = IMPROVE_CONTEXT_BODIES;
+        public String excludedMutants = "";
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -686,6 +689,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder excludedMutants(String excludedMutants) {
+            this.excludedMutants = excludedMutants;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -839,6 +847,8 @@ public class Config {
                 throw new IllegalArgumentException("Unknown improveFocalContext '" + this.improveFocalContext + "'. Valid values: " + IMPROVE_FOCAL_CONTEXTS);
             }
             config.setImproveFocalContext(this.improveFocalContext);
+            config.setExcludedMutants(this.excludedMutants == null ? "" : this.excludedMutants.trim());
+            config.setExcludedMutantIds(readExcludedMutants(config.getExcludedMutants()));
             return config;
         }
     }
@@ -911,5 +921,24 @@ public class Config {
 
     public void setSampleSize(int sampleSize) {
         this.sampleSize = sampleSize;
+    }
+
+    /** Mutant ids (Mutant.id), one per line; empty lines and lines starting with # are skipped. "" = none. */
+    static Set<String> readExcludedMutants(String file) {
+        Set<String> ids = new LinkedHashSet<>();
+        if (file == null || file.isEmpty()) {
+            return ids;
+        }
+        try {
+            for (String line : java.nio.file.Files.readAllLines(java.nio.file.Paths.get(file), java.nio.charset.StandardCharsets.UTF_8)) {
+                String id = line.trim();
+                if (!id.isEmpty() && !id.startsWith("#")) {
+                    ids.add(id);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Cannot read excludedMutants '" + file + "': " + e);
+        }
+        return ids;
     }
 }
