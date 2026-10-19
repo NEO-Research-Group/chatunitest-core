@@ -5,12 +5,17 @@ ${suite_tests}
 ```
 
 Mutation testing with PIT shows that the assertions of the suite are weak: ${score}
+<#if marked_method?has_content>
+This is the focal method again, with the lines that the new tests must target marked with a comment `// <-- [label]`:
+```java
+${marked_method}```
+</#if>
 <#if mutants?has_content>
-The following mutants of the focal method SURVIVED, that is, all the tests still pass when the code is changed in this way:
+The following changes (mutants) of the marked lines SURVIVED, that is, all the tests still pass when the code is changed in this way. For each change, what a test needs to detect it:
 ${mutants}
 </#if>
 <#if mutants_nc?has_content>
-The following lines of the focal method are not executed by any test, so no test can detect a change in them:
+The following marked lines are not executed by any test, so no test can detect a change in them:
 ${mutants_nc}
 </#if>
 

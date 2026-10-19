@@ -338,7 +338,7 @@ public class MethodRunner extends ClassRunner {
                 long t0 = System.nanoTime();
                 Map<String, Object> c = new LinkedHashMap<>();
                 cycles.add(c);
-                MutationResult next = cycle(i, selector.select(prev), prev, c);
+                MutationResult next = cycle(i, selector.select(prev, i), prev, c);
                 Set<String> killed = detectedIds(next);
                 killed.removeAll(detectedIds(prev));
                 putSuite(c, next);
@@ -366,8 +366,11 @@ public class MethodRunner extends ClassRunner {
                 throws IOException {
             List<Mutant> chosen = targets.stream().flatMap(t -> t.mutants.stream()).collect(Collectors.toList());
             String suiteCode = String.join("\n\n", suite.values());
+            MutantSelector.Rendered rendered = null;
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
-                MutantSelector.setHints(targets, suiteCode);
+                List<String> lines = focalSourceLines(s0.info);
+                int[] range = focalMethodRange(lines, prev);
+                rendered = MutantSelector.render(targets, lines, range[0], range[1], suiteCode);
             }
             List<Map<String, Object>> targetMaps = targets.stream().map(MutantSelector.Target::toMap)
                     .collect(Collectors.toList());
@@ -389,10 +392,10 @@ public class MethodRunner extends ClassRunner {
             q.setDuplicateBodies(suiteBodies);
             // A list: the ids contain the JVM descriptor of the method, with ';'
             List<String> chosenIds = chosen.stream().map(m -> m.id).collect(Collectors.toList());
-            if (Config.IMPROVE_MUTANTS.equals(arm)) {
-                List<String> lines = focalSourceLines(s0.info);
-                q.setImproveMutants(MutantSelector.formatSurvived(targets, lines));
-                q.setImproveMutantsNc(MutantSelector.formatBlocks(targets, lines));
+            if (rendered != null) {
+                q.setImproveMutants(rendered.survived);
+                q.setImproveMutantsNc(rendered.blocks);
+                q.setImproveMarkedMethod(rendered.markedMethod);
                 q.setImproveScore(MutantSelector.score(prev, config.getExcludedMutantIds()));
                 c.put("shownTargets", targetMaps);
                 c.put("shownMutants", chosenIds);
@@ -571,6 +574,43 @@ public class MethodRunner extends ClassRunner {
     static int prunedCount(MutationResult r, String testClass) {
         Set<String> pruned = r.getPrunedTests() == null ? null : r.getPrunedTests().get(testClass);
         return pruned == null ? 0 : pruned.size();
+    }
+
+    /**
+     * Lines {begin, end} (1-based) of the focal method in its source file: the method or constructor named as the focal
+     * method whose range contains the line of a mutant of r (PIT reports only the focal method), or the first one with
+     * that name. {0, 0} if it is not found.
+     */
+    int[] focalMethodRange(List<String> lines, MutationResult r) {
+        if (lines == null) {
+            return new int[]{0, 0};
+        }
+        try {
+            com.github.javaparser.ast.CompilationUnit cu = new com.github.javaparser.JavaParser()
+                    .parse(String.join("\n", lines)).getResult().orElse(null);
+            if (cu == null) {
+                return new int[]{0, 0};
+            }
+            Set<Integer> mutantLines = r.getMutants().stream().map(m -> m.line).collect(Collectors.toSet());
+            int[] first = null;
+            for (com.github.javaparser.ast.body.CallableDeclaration<?> d
+                    : cu.findAll(com.github.javaparser.ast.body.CallableDeclaration.class)) {
+                if (!d.getNameAsString().equals(methodInfo.methodName) || !d.getRange().isPresent()) {
+                    continue;
+                }
+                int b = d.getRange().get().begin.line, e = d.getRange().get().end.line;
+                if (mutantLines.stream().anyMatch(l -> l >= b && l <= e)) {
+                    return new int[]{b, e};
+                }
+                if (first == null) {
+                    first = new int[]{b, e};
+                }
+            }
+            return first == null ? new int[]{0, 0} : first;
+        } catch (Exception e) {
+            config.getLogger().warn("Cannot find the focal method in its source file: " + e);
+            return new int[]{0, 0};
+        }
     }
 
     /** Lines of the source file of the focal class (PIT's line numbers), or null if it is not found. */

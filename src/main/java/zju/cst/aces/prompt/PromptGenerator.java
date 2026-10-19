@@ -111,6 +111,7 @@ public class PromptGenerator {
         promptTemplate.dataModel.put("new_class_name", fullTestName.substring(fullTestName.lastIndexOf('.') + 1));
         promptTemplate.dataModel.put("mutants", nonNull(promptInfo.getImproveMutants()));
         promptTemplate.dataModel.put("mutants_nc", nonNull(promptInfo.getImproveMutantsNc()));
+        promptTemplate.dataModel.put("marked_method", nonNull(promptInfo.getImproveMarkedMethod()));
         promptTemplate.dataModel.put("score", nonNull(promptInfo.getImproveScore()));
         promptTemplate.dataModel.put("private_bodies", nonNull(promptInfo.getPrivateBodies()));
         promptTemplate.dataModel.put("improve_fce", nonNull(promptInfo.getImproveFce()));
