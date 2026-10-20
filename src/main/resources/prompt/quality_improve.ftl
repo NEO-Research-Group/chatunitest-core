@@ -25,6 +25,9 @@ For the lines that are not executed, choose the inputs and the mock configuratio
 </#if>
 Check return values, state changes and the interactions with the dependencies (`verify`). Do not assert behaviour that the original code does not have.
 The new class contains only new tests (do not copy the tests of the suite), compiles on its own, and all its tests pass on the original code.
+<#if repeated_tests?has_content>
+Your previous answer only repeated tests that are already in the suite (${repeated_tests}). Do not return them again: write different tests, with other inputs, mock configurations or assertions, that check something the suite does not check yet.
+</#if>
 <#if private_bodies?has_content>
 The focal method calls private methods of the focal class. Their source code is below; check their effect through the dependencies, the state or the return value, not with stubs or `verify` of the private methods:
 ```

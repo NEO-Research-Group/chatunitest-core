@@ -129,27 +129,39 @@ public class MethodRunner extends ClassRunner {
      * Round 0 (generation, or improvement if improve) + validation, and repair + validation up to lastRound.
      * If every round fails, the tests that passed in some round are validated on their own (PARTIAL_CORRECT_TESTS).
      * Used for S0 and for each improvement class Q_i, so that both are repaired in the same way. In Q_i, the tests
-     * that repeat a test of A_{i-1} are removed before validating round 0; if none is left, DUPLICATE (no repair).
+     * that repeat a test of A_{i-1} are removed before validating; if none is left, the improvement prompt is asked
+     * again in the next round, naming the repeated tests (promptInfo.repeatedTests). Each new ask spends one repair
+     * round; if every round only repeats tests, DUPLICATE.
      */
     public Outcome generateAndRepair(Phase phase, PromptConstructorImpl pc, boolean improve, int lastRound) {
         PromptInfo promptInfo = pc.getPromptInfo();
         promptInfo.setRound(0);
+        int firstRepair = 1;
         if (improve) {
             phase.improveTest(pc);
-            if (!promptInfo.getUnitTest().isEmpty()) {
+            while (!promptInfo.getUnitTest().isEmpty()) {
                 String dedup = removeDuplicates(promptInfo, pc.getFullTestName(), promptInfo.getUnitTest());
-                if (dedup == null) {
+                if (dedup != null) {
+                    promptInfo.setUnitTest(dedup);
+                    break;
+                }
+                if (firstRepair > lastRound) {
                     return Outcome.DUPLICATE;
                 }
-                promptInfo.setUnitTest(dedup);
+                config.getLogger().info("Every test of < " + pc.getTestName() + " > repeats a test of the suite: asking again"
+                        + " for different tests (round " + firstRepair + ")");
+                promptInfo.setDuplicateRetries(promptInfo.getDuplicateRetries() + 1);
+                promptInfo.setRound(firstRepair++);
+                phase.improveTest(pc);
             }
+            promptInfo.setRepeatedTests(null);
         } else {
             phase.generateTest(pc);
         }
         if (phase.validateTest(pc)) {
             return Outcome.PASSED;
         }
-        for (int rounds = 1; rounds <= lastRound; rounds++) {
+        for (int rounds = firstRepair; rounds <= lastRound; rounds++) {
             promptInfo.setRound(rounds);
             phase.repairTest(pc);
             if (phase.validateTest(pc)) {
@@ -181,7 +193,11 @@ public class MethodRunner extends ClassRunner {
         }
         promptInfo.setTestsDuplicated(promptInfo.getTestsDuplicated() + dup.size());
         config.getLogger().info("Removed " + dup.size() + " tests of < " + testName + " > that repeat a test of the suite: " + dup);
-        return dup.size() == bodies.size() ? null : tp.removeTestsByName(code, dup);
+        if (dup.size() == bodies.size()) {
+            promptInfo.setRepeatedTests(String.join(", ", dup));
+            return null;
+        }
+        return tp.removeTestsByName(code, dup);
     }
 
     /**
@@ -313,8 +329,8 @@ public class MethodRunner extends ClassRunner {
         /**
          * Stops at the first of (enfoque.md §3.3): N cycles done (MAX_CYCLES); no target left, that is, no SURVIVED
          * or NO_COVERAGE mutant that is not excluded (NO_TARGETS, NO_SURVIVED before E2); only targets tried
-         * maxMutantAttempts times (ALL_EXHAUSTED); stagnationCycles cycles in a row without killing any new mutant
-         * (STAGNATION). The generic arm selects and counts the attempts in the same way, without showing the
+         * maxMutantAttempts times (ALL_EXHAUSTED); stagnationCycles valid cycles in a row without killing any new
+         * mutant (STAGNATION; discarded cycles do not count). The generic arm selects and counts the attempts in the same way, without showing the
          * targets, so that both arms stop by the same rule.
          */
         void cycles() throws IOException {
@@ -344,7 +360,11 @@ public class MethodRunner extends ClassRunner {
                 putSuite(c, next);
                 c.put("newKilled", String.valueOf(killed.size()));
                 c.put("time", String.valueOf((float) (System.nanoTime() - t0) / 1_000_000_000));
-                withoutKills = killed.isEmpty() ? withoutKills + 1 : 0;
+                // Only valid cycles count for the stagnation: a discarded cycle (red, duplicate) says nothing about
+                // the targets. It still spends a cycle and the attempts of the targets it showed.
+                if ("true".equals(c.get("valid"))) {
+                    withoutKills = killed.isEmpty() ? withoutKills + 1 : 0;
+                }
                 prev = next;
                 if (withoutKills >= config.getStagnationCycles()) {
                     stop("STAGNATION", i);
@@ -513,6 +533,7 @@ public class MethodRunner extends ClassRunner {
             c.put("greenFromRound", String.valueOf(q.getGreenFromRound()));
             c.put("repairRounds", String.valueOf(q.getRecords().size() - 1));
             c.put("restarts", String.valueOf(q.getInRoundRestarts()));
+            c.put("duplicateRetries", String.valueOf(q.getDuplicateRetries()));   // rounds that asked again after a repeat
             c.put("stagnantRounds", String.valueOf(q.getStagnantRounds()));
             c.put("truncatedResponses", String.valueOf(q.countTruncatedResponses(config.getMaxResponseTokens())));
             c.put("qTestsExported", String.valueOf(q.getTestsExported()));

@@ -115,6 +115,7 @@ public class PromptGenerator {
         promptTemplate.dataModel.put("score", nonNull(promptInfo.getImproveScore()));
         promptTemplate.dataModel.put("private_bodies", nonNull(promptInfo.getPrivateBodies()));
         promptTemplate.dataModel.put("improve_fce", nonNull(promptInfo.getImproveFce()));
+        promptTemplate.dataModel.put("repeated_tests", nonNull(promptInfo.getRepeatedTests()));
     }
 
     private static String nonNull(String s) {

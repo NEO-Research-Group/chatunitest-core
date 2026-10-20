@@ -76,6 +76,10 @@ public class PromptInfo {
     // are removed (E2); null in S0. testsDuplicated counts them.
     public Set<String> duplicateBodies;
     public int testsDuplicated = 0;
+    // Names of the tests of the previous improvement answer that only repeated tests of A_{i-1}: the improvement
+    // prompt asks again for different tests (MethodRunner.generateAndRepair); null otherwise.
+    public String repeatedTests;
+    public int duplicateRetries = 0;
 
 
     /**
