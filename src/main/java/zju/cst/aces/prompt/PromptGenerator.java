@@ -108,6 +108,7 @@ public class PromptGenerator {
         String fullTestName = promptInfo.getFullTestName();
         promptTemplate.dataModel.put("focal_context", focalContext);
         promptTemplate.dataModel.put("suite_tests", nonNull(promptInfo.getSuiteTests()));
+        promptTemplate.dataModel.put("suite_names_only", String.valueOf(Config.SUITE_CONTEXT_NAMES.equals(config.getImproveSuiteContext())));
         promptTemplate.dataModel.put("new_class_name", fullTestName.substring(fullTestName.lastIndexOf('.') + 1));
         promptTemplate.dataModel.put("mutants", nonNull(promptInfo.getImproveMutants()));
         promptTemplate.dataModel.put("mutants_nc", nonNull(promptInfo.getImproveMutantsNc()));

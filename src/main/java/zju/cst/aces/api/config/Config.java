@@ -61,6 +61,10 @@ public class Config {
     public static final String IMPROVE_CONTEXT_BODIES = "bodies";
     public static final String IMPROVE_CONTEXT_FCE = "fce";
     public static final List<String> IMPROVE_FOCAL_CONTEXTS = Arrays.asList(IMPROVE_CONTEXT_BODIES, IMPROVE_CONTEXT_FCE);
+    /** The accumulated suite in the improvement prompt: the code of its tests, or only their names (S13, E2). */
+    public static final String SUITE_CONTEXT_CODE = "code";
+    public static final String SUITE_CONTEXT_NAMES = "names";
+    public static final List<String> SUITE_CONTEXTS = Arrays.asList(SUITE_CONTEXT_CODE, SUITE_CONTEXT_NAMES);
 
     public String date;
     public Gson GSON;
@@ -144,6 +148,7 @@ public class Config {
     public boolean keepPitWork;     // keep tmpOutput/<artifact>/mutation/<call> (classes, report and log) of each PIT call
     public String improvePromptType;
     public String improveFocalContext;
+    public String improveSuiteContext;
     public double improveTemperature;           // temperature of the improvement call (round 0 of Q_i); < 0 = temperature
     public String excludedMutants;              // file with the ids of the mutants that are not targets (e.g. equivalent)
     public Set<String> excludedMutantIds = new HashSet<>();
@@ -228,6 +233,7 @@ public class Config {
         public boolean keepPitWork = false;
         public String improvePromptType = IMPROVE_MUTANTS;
         public String improveFocalContext = IMPROVE_CONTEXT_BODIES;
+        public String improveSuiteContext = SUITE_CONTEXT_CODE;
         public String excludedMutants = "";
         public double improveTemperature = -1;
 
@@ -691,6 +697,11 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder improveSuiteContext(String improveSuiteContext) {
+            this.improveSuiteContext = improveSuiteContext;
+            return this;
+        }
+
         public ConfigBuilder improveTemperature(double improveTemperature) {
             this.improveTemperature = improveTemperature;
             return this;
@@ -854,6 +865,10 @@ public class Config {
                 throw new IllegalArgumentException("Unknown improveFocalContext '" + this.improveFocalContext + "'. Valid values: " + IMPROVE_FOCAL_CONTEXTS);
             }
             config.setImproveFocalContext(this.improveFocalContext);
+            if (!SUITE_CONTEXTS.contains(this.improveSuiteContext)) {
+                throw new IllegalArgumentException("Unknown improveSuiteContext '" + this.improveSuiteContext + "'. Valid values: " + SUITE_CONTEXTS);
+            }
+            config.setImproveSuiteContext(this.improveSuiteContext);
             config.setImproveTemperature(this.improveTemperature);
             config.setExcludedMutants(this.excludedMutants == null ? "" : this.excludedMutants.trim());
             config.setExcludedMutantIds(readExcludedMutants(config.getExcludedMutants()));
@@ -909,6 +924,7 @@ public class Config {
         logger.info(" Quality Improve >>>> " + this.isEnableQualityImprove());
         if (this.isEnableQualityImprove()) {
             logger.info(" - Prompt: " + this.getImprovePromptType() + ", focal context: " + this.getImproveFocalContext()
+                    + ", suite in the prompt: " + this.getImproveSuiteContext()
                     + ", mutators: " + this.getMutators() + ", PIT timeout: " + this.getPitTimeout() + " s"
                     + (this.isKeepPitWork() ? ", keeping PIT work dirs" : ""));
             logger.info(" - Cycles: " + this.getMaxQualityCycles() + ", repairs per cycle: " + this.getMaxRepairPerCycle()

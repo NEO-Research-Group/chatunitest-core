@@ -272,6 +272,7 @@ public class MethodRunner extends ClassRunner {
             out.put("improvePromptType", arm);
             out.put("s0Shared", String.valueOf(Config.IMPROVE_BOTH.equals(config.getImprovePromptType())));
             out.put("improveFocalContext", config.getImproveFocalContext());
+            out.put("improveSuiteContext", config.getImproveSuiteContext());
             out.put("mutators", config.getMutators());
             out.put("maxRounds", String.valueOf(config.getMaxRounds()));
             out.put("maxQualityCycles", String.valueOf(config.getMaxQualityCycles()));
@@ -390,7 +391,7 @@ public class MethodRunner extends ClassRunner {
             if (Config.IMPROVE_MUTANTS.equals(arm)) {
                 List<String> lines = focalSourceLines(s0.info);
                 int[] range = focalMethodRange(lines, prev);
-                rendered = MutantSelector.render(targets, lines, range[0], range[1], suiteCode);
+                rendered = MutantSelector.render(targets, lines, range[0], range[1], suiteCode, prev.getMutants());
             }
             List<Map<String, Object>> targetMaps = targets.stream().map(MutantSelector.Target::toMap)
                     .collect(Collectors.toList());
@@ -400,7 +401,7 @@ public class MethodRunner extends ClassRunner {
             c.put("testClass", qName);
             PromptInfo q = PromptInfo.forImprovement(s0.info, qName, qPath);
             q.setImproveMode(arm);
-            q.setSuiteTests(suiteCode);
+            q.setSuiteTests(Config.SUITE_CONTEXT_NAMES.equals(config.getImproveSuiteContext()) ? suiteTestNames() : suiteCode);
             q.setPruneFromRound(config.getMaxRepairPerCycle());
             Set<String> suiteBodies = new HashSet<>();
             for (Map.Entry<String, String> e : suite.entrySet()) {
@@ -486,6 +487,18 @@ public class MethodRunner extends ClassRunner {
             c.put("killedChosenNc", String.valueOf(r.getMutants().stream()
                     .filter(m -> m.detected && chosenNc.contains(m.id)).count()));
             return r;
+        }
+
+        /** The tests of A_{i-1} by class, names only (improveSuiteContext=names): "- Class: test1, test2". */
+        String suiteTestNames() {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> e : suite.entrySet()) {
+                Map<String, String> b = new TestProcessor(e.getKey()).testBodies(e.getValue());
+                String cls = e.getKey().substring(e.getKey().lastIndexOf('.') + 1);
+                sb.append(sb.length() > 0 ? "\n" : "").append("- ").append(cls).append(": ")
+                        .append(b == null ? "?" : String.join(", ", b.keySet()));
+            }
+            return sb.toString();
         }
 
         void discard(Map<String, Object> c, String outcome) {

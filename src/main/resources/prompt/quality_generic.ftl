@@ -1,8 +1,13 @@
 ${focal_context}
+<#if suite_names_only == "true">
+The existing test suite of the focal method has these tests (names only, by class). All of them compile and pass:
+${suite_tests}
+<#else>
 The existing test suite of the focal method is below. All its tests compile and pass:
 ```
 ${suite_tests}
 ```
+</#if>
 
 Write a new test class `${new_class_name}` in the package `${package}` with new test cases that would detect faults in the focal method, so that a change in its behaviour makes at least one new test fail.
 Check return values, state changes and the interactions with the dependencies (`verify`). Do not assert behaviour that the original code does not have.

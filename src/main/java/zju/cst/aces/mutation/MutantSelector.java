@@ -197,6 +197,12 @@ public class MutantSelector {
      */
     public static Rendered render(List<Target> targets, List<String> sourceLines, int methodBegin, int methodEnd,
                                   String suiteCode) {
+        return render(targets, sourceLines, methodBegin, methodEnd, suiteCode, null);
+    }
+
+    /** As above; with all the mutants of the focal method (PIT result of A_{i-1}), each change on a condition names it. */
+    public static Rendered render(List<Target> targets, List<String> sourceLines, int methodBegin, int methodEnd,
+                                  String suiteCode, List<Mutant> all) {
         Rendered r = new Rendered();
         Map<Integer, List<String>> marks = new TreeMap<>();
         int nl = 0, nb = 0;
@@ -213,8 +219,9 @@ public class MutantSelector {
                 for (Mutant m : t.mutants) {
                     boolean mocked = isMockedCall(m, suiteCode);
                     verify |= mocked;
+                    String line = code(m.line, sourceLines);
                     s.append(String.format("\n  - change: %s (%s). To detect it: %s", m.description, m.mutatorShort,
-                            need(m, mocked, code(m.line, sourceLines))));
+                            need(m, mocked, line, Condition.of(m, all, line))));
                 }
                 t.hint = verify ? HINT_VERIFY : HINT_RETURN;
                 List<String> tests = t.mutants.stream().flatMap(m -> m.succeedingTests.stream()).distinct()
@@ -281,9 +288,152 @@ public class MutantSelector {
         return h < 0 ? cls : cls + "." + name.substring(h + 1);
     }
 
-    /** What a test needs to detect the mutant, from its mutator (E2: "a hint of what is needed to kill it"). */
+    static final List<String> CONDITION_MUTATORS = Arrays.asList("NegateConditionals", "RemoveConditionalMutator",
+            "ConditionalsBoundary");
+
+    /**
+     * The condition of an if line that a conditional mutant changes (S13, E1). PIT does not say which condition of a
+     * line it mutates; each condition of the line is one jump instruction, and with ALL every jump has some conditional
+     * mutant, so the k-th distinct instruction index of the conditional mutants of the line (in the PIT result of the
+     * whole method) is the k-th condition in the source (javac emits them from left to right). Used only when the
+     * number of conditions equals the number of jumps. forced: the value the condition takes with the change ("true",
+     * "false"), "negated", or null when it cannot be told (a chain that mixes && and ||, or not an if line).
+     */
+    static class Condition {
+        final String text;
+        final String forced;
+
+        Condition(String text, String forced) {
+            this.text = text;
+            this.forced = forced;
+        }
+
+        static final Pattern IF_LINE = Pattern.compile("^\\s*(?:\\}\\s*)?(?:else\\s+)?if\\s*\\((.*)\\)\\s*\\{?\\s*$");
+
+        static Condition of(Mutant m, List<Mutant> all, String code) {
+            String op = m.mutatorShort == null ? "" : m.mutatorShort;
+            if (all == null || code == null || CONDITION_MUTATORS.stream().noneMatch(op::startsWith)) {
+                return null;
+            }
+            Matcher im = IF_LINE.matcher(code);
+            if (!im.matches()) {
+                return null;
+            }
+            List<String> seps = new ArrayList<>();
+            List<String> conds = split(im.group(1), seps);
+            TreeSet<Integer> jumps = new TreeSet<>();
+            for (Mutant u : all) {
+                String uop = u.mutatorShort == null ? "" : u.mutatorShort;
+                if (u.line == m.line && CONDITION_MUTATORS.stream().anyMatch(uop::startsWith) && firstIndex(u) >= 0) {
+                    jumps.add(firstIndex(u));
+                }
+            }
+            int k = new ArrayList<>(jumps).indexOf(firstIndex(m));
+            if (conds == null || conds.size() != jumps.size() || k < 0) {
+                return null;
+            }
+            String forced = null;
+            if (op.startsWith("NegateConditionals")) {
+                forced = "negated";
+            } else if (op.startsWith("RemoveConditionalMutator") && new HashSet<>(seps).size() <= 1) {
+                // _IF: the jump is never taken; _ELSE: always. In an && chain (or a single condition) each jump goes
+                // to the else when its condition is false; in an || chain, all but the last go to the body when true.
+                boolean jumpWhenTrue = seps.contains("||") && k < conds.size() - 1;
+                boolean neverJump = op.endsWith("_IF");
+                forced = String.valueOf(neverJump != jumpWhenTrue);
+            }
+            return new Condition(conds.get(k), forced);
+        }
+
+        static int firstIndex(Mutant m) {
+            try {
+                return m.indexes == null ? -1 : Integer.parseInt(m.indexes.split(",")[0].trim());
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+
+        /** The top-level && / || operands of e (nested groups with && / || are split too); seps gets the operators. */
+        static List<String> split(String e, List<String> seps) {
+            List<String> out = new ArrayList<>();
+            int depth = 0;
+            StringBuilder cur = new StringBuilder();
+            for (int i = 0; i < e.length(); i++) {
+                char ch = e.charAt(i);
+                if (ch == '"' || ch == '\'') {
+                    int j = i + 1;
+                    while (j < e.length() && e.charAt(j) != ch) {
+                        j += e.charAt(j) == '\\' ? 2 : 1;
+                    }
+                    cur.append(e, i, Math.min(j + 1, e.length()));
+                    i = j;
+                    continue;
+                }
+                if (ch == '(' || ch == '[') {
+                    depth++;
+                } else if (ch == ')' || ch == ']') {
+                    depth--;
+                }
+                if (depth == 0 && i + 1 < e.length() && (e.startsWith("&&", i) || e.startsWith("||", i))) {
+                    out.add(cur.toString().trim());
+                    seps.add(e.substring(i, i + 2));
+                    cur.setLength(0);
+                    i++;
+                    continue;
+                }
+                cur.append(ch);
+            }
+            out.add(cur.toString().trim());
+            if (depth != 0) {
+                return null;
+            }
+            List<String> res = new ArrayList<>();
+            for (String a : out) {
+                String inner = a.startsWith("!") ? a.substring(1).trim() : a;
+                if (inner.startsWith("(") && inner.endsWith(")") && (inner.contains("&&") || inner.contains("||"))) {
+                    List<String> sub = split(inner.substring(1, inner.length() - 1), seps);
+                    if (sub == null) {
+                        return null;
+                    }
+                    res.addAll(sub);
+                } else {
+                    res.add(a);
+                }
+            }
+            return res;
+        }
+    }
+
     static String need(Mutant m, boolean mocked, String code) {
+        return need(m, mocked, code, null);
+    }
+
+    /** What a test needs to detect the mutant, from its mutator (E2: "a hint of what is needed to kill it"). */
+    static String need(Mutant m, boolean mocked, String code, Condition cond) {
         String op = m.mutatorShort == null ? "" : m.mutatorShort;
+        if (cond != null) {
+            String c = "`" + cond.text + "`";
+            if (op.startsWith("ConditionalsBoundary")) {
+                return "the change is in the condition " + c + ". Only an input where both sides of " + c + " are equal "
+                        + "tells it apart (e.g. a size or value exactly at the limit); check the returned value or the "
+                        + "effect for that input.";
+            }
+            if ("true".equals(cond.forced)) {
+                return "with the change, the condition " + c + " always counts as true. Use an input where " + c
+                        + " is false and decides the whole condition of the line, and check the result of that "
+                        + "(returned value, state, or `verify(..., never())`).";
+            }
+            if ("false".equals(cond.forced)) {
+                return "with the change, the condition " + c + " always counts as false. Use an input where " + c
+                        + " is true and decides the whole condition of the line, and check the effect of the branch "
+                        + "(returned value, state or `verify`).";
+            }
+            if ("negated".equals(cond.forced)) {
+                return "with the change, the condition " + c + " is negated. Use an input where " + c + " decides the "
+                        + "whole condition of the line and check the result of the branch that the input takes "
+                        + "(returned value, state or `verify`).";
+            }
+        }
         boolean several = code.contains("&&") || code.contains("||");
         String which = several ? " The line has several conditions; the change affects one of them." : "";
         if (op.startsWith("ConditionalsBoundary")) {

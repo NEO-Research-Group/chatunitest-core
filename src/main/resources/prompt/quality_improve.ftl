@@ -1,8 +1,13 @@
 ${focal_context}
+<#if suite_names_only == "true">
+The existing test suite of the focal method has these tests (names only, by class). All of them compile and pass:
+${suite_tests}
+<#else>
 The existing test suite of the focal method is below. All its tests compile and pass:
 ```
 ${suite_tests}
 ```
+</#if>
 
 Mutation testing with PIT shows that the assertions of the suite are weak: ${score}
 <#if marked_method?has_content>
