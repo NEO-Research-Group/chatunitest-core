@@ -495,6 +495,11 @@ public abstract class AbstractRunner {
         map.put("stagnationStrategy", config.getStagnationStrategy());
         map.put("stagnantRounds", String.valueOf(promptInfo.getStagnantRounds()));
         map.put("greenFromRound", String.valueOf(promptInfo.getGreenFromRound()));
+        // What methodFilter uses (MethodRunner.passesMethodFilter), for every phase: external dependencies of the
+        // focal method (SOFIA activations, also computed outside SOFIA) and branches in its source
+        map.put("externalDeps", String.valueOf(promptInfo.getSofiaActivations()));
+        map.put("branches", String.valueOf(promptInfo.methodInfo == null ? -1
+                : MethodRunner.countConditionsInSource(promptInfo.methodInfo.sourceCode)));
         if (config.getPhaseType().equals("SOFIA") || config.getPhaseType().equals("SOFIA_OLD")
                 || config.getPhaseType().equals("FCE") || config.getPhaseType().equals("ECR")
                 || config.getPhaseType().equals("FCE_WITH_ECR") || config.getPhaseType().equals("ERROR_PARSING"))
