@@ -64,6 +64,8 @@ public class AskGPT {
                 }
                 if (modelConfig.isDisableThinking()) {
                     payload.put("thinking", Collections.singletonMap("type", "disabled"));
+                } else if (modelConfig.isEnableThinking()) {
+                    payload.put("thinking", Collections.singletonMap("type", "enabled"));
                 }
                 String jsonPayload = GSON.toJson(payload);
 

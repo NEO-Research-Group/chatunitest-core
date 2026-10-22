@@ -95,6 +95,16 @@ public enum Model {
             .withFrequencyPenalty(0)
             .withPresencePenalty(0)
             .withDisableThinking(true)
+            .build()),
+    // The same API model as DEEPSEEK_V4_FLASH, with reasoning (temperature and penalties are ignored in this mode)
+    DEEPSEEK_V4_FLASH_THINKING("deepseek-v4-flash-thinking", new ModelConfig.Builder()
+            .withModelName("deepseek-v4-flash")
+            .withUrl("https://api.deepseek.com/v1/chat/completions")
+            .withContextLength(256000)
+            .withTemperature(0.5)
+            .withFrequencyPenalty(0)
+            .withPresencePenalty(0)
+            .withEnableThinking(true)
             .build());
 
     private final String modelName;

@@ -13,6 +13,7 @@ public class ModelConfig {
     public boolean supportsRandomSeed;
     public boolean useMaxCompletionTokens;
     public boolean disableThinking;
+    public boolean enableThinking;
 
     private ModelConfig(Builder builder) {
         this.modelName = builder.modelName;
@@ -24,6 +25,7 @@ public class ModelConfig {
         this.supportsRandomSeed = builder.supportsRandomSeed;
         this.useMaxCompletionTokens = builder.useMaxCompletionTokens;
         this.disableThinking = builder.disableThinking;
+        this.enableThinking = builder.enableThinking;
     }
 
     public static class Builder {
@@ -36,6 +38,7 @@ public class ModelConfig {
         private boolean supportsRandomSeed = true;
         private boolean useMaxCompletionTokens = false;
         private boolean disableThinking = false;
+        private boolean enableThinking = false;
 
         public Builder withModelName(String modelName) {
             this.modelName = modelName;
@@ -79,6 +82,12 @@ public class ModelConfig {
 
         public Builder withDisableThinking(boolean disableThinking) {
             this.disableThinking = disableThinking;
+            return this;
+        }
+
+        // Send thinking = enabled explicitly (DeepSeek: on by default, effort high); max_tokens includes the reasoning
+        public Builder withEnableThinking(boolean enableThinking) {
+            this.enableThinking = enableThinking;
             return this;
         }
 

@@ -199,6 +199,12 @@ public class TestGeneration {
 
         record.setPromptToken(response.getUsage().getPromptTokens());
         record.setResponseToken(response.getUsage().getCompletionTokens());
+        // Added up: an in-round restart calls twice with the same record, and the totals count the discarded call
+        record.setReasoningToken(record.getReasoningToken() + response.getUsage().getReasoningTokens());
+        if (response.getUsage().getReasoningTokens() > 0) {
+            config.getLogger().info("Reasoning tokens: " + response.getUsage().getReasoningTokens()
+                    + " of " + response.getUsage().getCompletionTokens() + " completion tokens");
+        }
         record.setPrompt(prompt);
         record.setResponse(content);
         if (code.isEmpty()) {

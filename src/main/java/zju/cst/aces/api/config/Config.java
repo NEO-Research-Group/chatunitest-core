@@ -206,7 +206,7 @@ public class Config {
         public OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(5, TimeUnit.MINUTES)
                 .writeTimeout(5, TimeUnit.MINUTES)
-                .readTimeout(5, TimeUnit.MINUTES)
+                .readTimeout(20, TimeUnit.MINUTES)
                 .build();
         public int max_coverage_improve_time=maxRounds;
         public int sampleSize = 10;
@@ -731,7 +731,7 @@ public class Config {
             this.client = new OkHttpClient.Builder()
                     .connectTimeout(5, TimeUnit.MINUTES)
                     .writeTimeout(5, TimeUnit.MINUTES)
-                    .readTimeout(5, TimeUnit.MINUTES)
+                    .readTimeout(20, TimeUnit.MINUTES)
                     .build();
         }
 
@@ -740,7 +740,7 @@ public class Config {
             this.client = new OkHttpClient.Builder()
                     .connectTimeout(5, TimeUnit.MINUTES)
                     .writeTimeout(5, TimeUnit.MINUTES)
-                    .readTimeout(5, TimeUnit.MINUTES)
+                    .readTimeout(20, TimeUnit.MINUTES)
                     .proxy(proxy)
                     .build();
         }
