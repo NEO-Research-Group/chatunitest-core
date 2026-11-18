@@ -715,6 +715,8 @@ public class MethodRunner extends ClassRunner {
                 return branches > 0;
             case Config.METHOD_FILTER_EXTERNAL_DEPS:
                 return externalDeps > 0;
+            case Config.METHOD_FILTER_BRANCHES_NO_DEPS:
+                return externalDeps == 0 && branches > 0;
             case Config.METHOD_FILTER_BENCHMARK:
             default:
                 return externalDeps > 0 && branches > 0;

@@ -43,8 +43,11 @@ public class Config {
     public static final String METHOD_FILTER_BRANCHES = "branches";
     public static final String METHOD_FILTER_EXTERNAL_DEPS = "externalDeps";
     public static final String METHOD_FILTER_NONE = "none";
+    /** Complement of the benchmark with branches: no external deps AND branches (control group). */
+    public static final String METHOD_FILTER_BRANCHES_NO_DEPS = "branchesNoDeps";
     public static final List<String> METHOD_FILTERS = Arrays.asList(
-            METHOD_FILTER_BENCHMARK, METHOD_FILTER_BRANCHES, METHOD_FILTER_EXTERNAL_DEPS, METHOD_FILTER_NONE);
+            METHOD_FILTER_BENCHMARK, METHOD_FILTER_BRANCHES, METHOD_FILTER_EXTERNAL_DEPS, METHOD_FILTER_NONE,
+            METHOD_FILTER_BRANCHES_NO_DEPS);
     /** What to do when a repair prompt is identical to the previous round's (TestGeneration). none = Expert Systems. */
     public static final String STAGNATION_NONE = "none";
     public static final String STAGNATION_TEMPERATURE = "temperature"; // same prompt, stagnationTemperature, no seed
