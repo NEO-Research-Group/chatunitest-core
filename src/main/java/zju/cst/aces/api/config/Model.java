@@ -77,6 +77,25 @@ public enum Model {
             .withFrequencyPenalty(0)
             .withPresencePenalty(0)
             .build()),
+    // Codestral 25.08 by version (codestral-latest may change behind the same name)
+    CODESTRAL_2508("codestral-2508", new ModelConfig.Builder()
+            .withModelName("codestral-2508")
+            .withUrl(null)
+            .withContextLength(256000)
+            .withTemperature(0.5)
+            .withFrequencyPenalty(0)
+            .withPresencePenalty(0)
+            .build()),
+    // Open-weights models served locally with Ollama (OpenAI-compatible API, -Durl=http://127.0.0.1:<port>/v1/chat/completions,
+    // any API key). The context length is the one of the server (OLLAMA_CONTEXT_LENGTH)
+    DEVSTRAL_SMALL_2("devstral-small-2", new ModelConfig.Builder()
+            .withModelName("devstral-small-2")
+            .withUrl(null)
+            .withContextLength(32768)
+            .withTemperature(0.5)
+            .withFrequencyPenalty(0)
+            .withPresencePenalty(0)
+            .build()),
     GPT_5_4_MINI("gpt-5.4-mini", new ModelConfig.Builder()
             .withModelName("gpt-5.4-mini")
             .withUrl("https://api.openai.com/v1/chat/completions")
