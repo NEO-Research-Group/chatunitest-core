@@ -495,6 +495,8 @@ public abstract class AbstractRunner {
         map.put("stagnationStrategy", config.getStagnationStrategy());
         map.put("stagnantRounds", String.valueOf(promptInfo.getStagnantRounds()));
         map.put("greenFromRound", String.valueOf(promptInfo.getGreenFromRound()));
+        // -Ds0From: S0 copied from a saved run, not generated (its rounds, tokens and time are not those of a generation)
+        map.put("s0Loaded", String.valueOf(config.getS0From() != null && !config.getS0From().isEmpty()));
         // What methodFilter uses (MethodRunner.passesMethodFilter), for every phase: external dependencies of the
         // focal method (SOFIA activations, also computed outside SOFIA) and branches in its source
         map.put("externalDeps", String.valueOf(promptInfo.getSofiaActivations()));

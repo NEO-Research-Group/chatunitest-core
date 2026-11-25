@@ -1,5 +1,6 @@
 package zju.cst.aces.dto;
 
+import com.google.gson.annotations.SerializedName;
 import lombok.*;
 
 @Data
@@ -9,6 +10,15 @@ import lombok.*;
 public class ChatMessage {
     private String role;
     private String content;
+    // Reasoning of the response, if the server returns it apart (Ollama: "reasoning"; DeepSeek: "reasoning_content").
+    // Null in the requests, so it is not sent (Gson skips nulls)
+    @SerializedName(value = "reasoning", alternate = {"reasoning_content"})
+    private String reasoning;
+
+    public ChatMessage(String role, String content) {
+        this.role = role;
+        this.content = content;
+    }
 
     public static ChatMessage of(String content) {
 

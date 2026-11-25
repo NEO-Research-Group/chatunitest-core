@@ -67,6 +67,11 @@ public class AskGPT {
                 } else if (modelConfig.isEnableThinking()) {
                     payload.put("thinking", Collections.singletonMap("type", "enabled"));
                 }
+                // -DextraPayload (e.g. Ollama: think, reasoning_effort, seed); without the seed when noSeed, as random_seed
+                payload.putAll(config.getExtraPayloadMap());
+                if (noSeed) {
+                    payload.remove("seed");
+                }
                 String jsonPayload = GSON.toJson(payload);
 
                 RequestBody body = RequestBody.create(MEDIA_TYPE, jsonPayload);

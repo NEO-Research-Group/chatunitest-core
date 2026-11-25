@@ -88,9 +88,15 @@ public class MethodRunner extends ClassRunner {
         }
 
         long startTime = System.nanoTime();
-        // Phase 1: generation + repair (rounds 1..maxRounds-1), as ChatUniTest
-        boolean success = generateAndRepair(phase, pc, false, config.getMaxRounds() - 1) == Outcome.PASSED;
-        exportRecord(pc.getPromptInfo(), classInfo, num);
+        boolean success;
+        if (config.getS0From() != null && !config.getS0From().isEmpty()) {
+            // -Ds0From: S0 of a saved run instead of the generation (the arms start from the same S0 as that run)
+            success = loadS0(promptInfo);
+        } else {
+            // Phase 1: generation + repair (rounds 1..maxRounds-1), as ChatUniTest
+            success = generateAndRepair(phase, pc, false, config.getMaxRounds() - 1) == Outcome.PASSED;
+            exportRecord(pc.getPromptInfo(), classInfo, num);
+        }
 
         // Phase 2: quality improvement, only from a green suite. PIT on S0 once; with improvePromptType=both,
         // the mutants and generic arms start from the same S0 (enfoque.md §5), one JSON entry per arm.
@@ -113,6 +119,26 @@ public class MethodRunner extends ClassRunner {
             }
         }
         return success;
+    }
+
+    /**
+     * -Ds0From: copies the saved S0 (<s0From>/<package path>/<test name>.java, the layout of testOutput) to the
+     * test path of this method. A missing file means that the saved run had no green S0 for it: no arm, as there.
+     * S0Baseline then reads it from the test path and runs PIT on it, as after a generation.
+     */
+    boolean loadS0(PromptInfo promptInfo) throws IOException {
+        Path rel = config.getTestOutput().relativize(promptInfo.getTestPath());
+        Path src = Paths.get(config.getS0From()).resolve(rel);
+        if (!Files.isRegularFile(src)) {
+            config.getLogger().warn("s0From: no saved S0 for < " + methodInfo.methodName + " > (" + src + "): no arm");
+            promptInfo.resetValidationStats("S0_NOT_FOUND");
+            return false;
+        }
+        Files.createDirectories(promptInfo.getTestPath().getParent());
+        Files.copy(src, promptInfo.getTestPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        promptInfo.resetValidationStats("S0_LOADED");
+        config.getLogger().info("s0From: S0 of < " + methodInfo.methodName + " > loaded from " + src);
+        return true;
     }
 
     /** Arms of the quality improvement: mutants, generic, or both from the same S0. */

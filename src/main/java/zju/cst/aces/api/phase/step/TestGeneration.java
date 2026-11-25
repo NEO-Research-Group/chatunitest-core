@@ -200,10 +200,16 @@ public class TestGeneration {
         record.setPromptToken(response.getUsage().getPromptTokens());
         record.setResponseToken(response.getUsage().getCompletionTokens());
         // Added up: an in-round restart calls twice with the same record, and the totals count the discarded call
-        record.setReasoningToken(record.getReasoningToken() + response.getUsage().getReasoningTokens());
-        if (response.getUsage().getReasoningTokens() > 0) {
-            config.getLogger().info("Reasoning tokens: " + response.getUsage().getReasoningTokens()
+        int reasoning = reasoningTokens(response);
+        record.setReasoningToken(record.getReasoningToken() + reasoning);
+        if (reasoning > 0) {
+            config.getLogger().info("Reasoning tokens: " + reasoning + (response.getUsage().getReasoningTokens() > 0 ? "" : " (estimated)")
                     + " of " + response.getUsage().getCompletionTokens() + " completion tokens");
+        }
+        if (response.getChoices() != null && !response.getChoices().isEmpty()
+                && "length".equals(response.getChoices().get(0).getFinishReason())) {
+            config.getLogger().warn("Response truncated at maxResponseTokens=" + config.getMaxResponseTokens()
+                    + " (" + response.getUsage().getCompletionTokens() + " completion tokens)");
         }
         record.setPrompt(prompt);
         record.setResponse(content);
@@ -216,4 +222,25 @@ public class TestGeneration {
         return code;
     }
 
+
+    /**
+     * Reasoning tokens of a response: as the provider reports them (completion_tokens_details, DeepSeek) or, if it
+     * returns the reasoning apart without counting it (Ollama), estimated from completion_tokens in proportion to
+     * the characters of the reasoning and of the content.
+     */
+    static int reasoningTokens(ChatResponse response) {
+        int reported = response.getUsage().getReasoningTokens();
+        if (reported > 0 || response.getChoices() == null || response.getChoices().isEmpty()
+                || response.getChoices().get(0).getMessage() == null) {
+            return reported;
+        }
+        String r = response.getChoices().get(0).getMessage().getReasoning();
+        String c = response.getChoices().get(0).getMessage().getContent();
+        Integer out = response.getUsage().getCompletionTokens();
+        if (r == null || r.isEmpty() || out == null) {
+            return 0;
+        }
+        int lc = c == null ? 0 : c.length();
+        return (int) Math.round(out * (double) r.length() / (r.length() + lc));
+    }
 }

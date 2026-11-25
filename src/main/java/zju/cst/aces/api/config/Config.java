@@ -155,6 +155,9 @@ public class Config {
     public double improveTemperature;           // temperature of the improvement call (round 0 of Q_i); < 0 = temperature
     public String excludedMutants;              // file with the ids of the mutants that are not targets (e.g. equivalent)
     public Set<String> excludedMutantIds = new HashSet<>();
+    public String s0From;                       // folder with a saved S0 (<fqn path>.java): skip the generation and start the arms from it
+    public String extraPayload;                 // JSON object merged into every LLM request (e.g. Ollama: {"think":false,"seed":42})
+    public Map<String, Object> extraPayloadMap = new LinkedHashMap<>();
 
     @Getter
     @Setter
@@ -239,6 +242,8 @@ public class Config {
         public String improveSuiteContext = SUITE_CONTEXT_CODE;
         public String excludedMutants = "";
         public double improveTemperature = -1;
+        public String s0From = "";
+        public String extraPayload = "";
 
         public ConfigBuilder(Project project) {
             initDefault(project);
@@ -715,6 +720,16 @@ public class Config {
             return this;
         }
 
+        public ConfigBuilder s0From(String s0From) {
+            this.s0From = s0From;
+            return this;
+        }
+
+        public ConfigBuilder extraPayload(String extraPayload) {
+            this.extraPayload = extraPayload;
+            return this;
+        }
+
         public void setProxy(String proxy) {
             this.proxy = proxy;
             setProxyStr();
@@ -875,6 +890,12 @@ public class Config {
             config.setImproveTemperature(this.improveTemperature);
             config.setExcludedMutants(this.excludedMutants == null ? "" : this.excludedMutants.trim());
             config.setExcludedMutantIds(readExcludedMutants(config.getExcludedMutants()));
+            config.setS0From(this.s0From == null ? "" : this.s0From.trim());
+            if (!config.getS0From().isEmpty() && !new File(config.getS0From()).isDirectory()) {
+                throw new IllegalArgumentException("s0From '" + config.getS0From() + "' is not a folder");
+            }
+            config.setExtraPayload(this.extraPayload == null ? "" : this.extraPayload.trim());
+            config.setExtraPayloadMap(parseExtraPayload(config.getExtraPayload()));
             return config;
         }
     }
@@ -951,6 +972,39 @@ public class Config {
     }
 
     /** Mutant ids (Mutant.id), one per line; empty lines and lines starting with # are skipped. "" = none. */
+    /** -DextraPayload: a JSON object whose fields are added to every LLM request (they override the core's). */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> parseExtraPayload(String json) {
+        if (json == null || json.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        try {
+            Map<String, Object> m = new Gson().fromJson(json, LinkedHashMap.class);
+            return m == null ? new LinkedHashMap<>() : (Map<String, Object>) integralNumbers(m);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("extraPayload is not a JSON object: '" + json + "' (" + e + ")");
+        }
+    }
+
+    /** Gson reads every JSON number as a double: 42 would be sent as 42.0, which Ollama rejects for an integer field. */
+    @SuppressWarnings("unchecked")
+    static Object integralNumbers(Object v) {
+        if (v instanceof Double && (Double) v == Math.rint((Double) v) && !Double.isInfinite((Double) v)) {
+            return ((Double) v).longValue();
+        }
+        if (v instanceof Map) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            ((Map<String, Object>) v).forEach((k, x) -> m.put(k, integralNumbers(x)));
+            return m;
+        }
+        if (v instanceof List) {
+            List<Object> l = new ArrayList<>();
+            ((List<Object>) v).forEach(x -> l.add(integralNumbers(x)));
+            return l;
+        }
+        return v;
+    }
+
     static Set<String> readExcludedMutants(String file) {
         Set<String> ids = new LinkedHashSet<>();
         if (file == null || file.isEmpty()) {
